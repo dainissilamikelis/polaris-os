@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="joy" exec="joy_node" name="joy_node"/>
+  <node pkg="mavros_joystic" exec="mavros_joystic" name="mavros_joystic"/>
+  <node pkg="mavros_commutator" exec="mavros_commutator" output="screen"/>
+</launch>

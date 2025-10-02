@@ -1,0 +1,22 @@
+rtsp://172.25.116.21:8889/krauklis1
+
+
+VIDEO SENDER TAK
+gst-launch-1.0 -v videotestsrc is-live=true ! 'video/x-raw,width=1280,height=720,framerate=30/1' ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! rtspclientsink location='rtsp://172.25.116.21:8554/krauklis1' protocols=tcp
+
+VIDEO SENDER GC
+gst-launch-1.0 videotestsrc is-live=true ! 'video/x-raw,width=1280,height=720,framerate=30/1' ! nvvidconv !  nvv4l2h264enc insert-sps-pps=true bitrate=300000 !  h264parse ! rtph264pay config-interval=-1 pt=96 ! queue !  udpsink clients=172.25.65.12:5000 max-bitrate=3000000 sync=false async=true
+
+VIDEO receiver
+gst-launch-1.0 udpsrc port=5000 ! application/x-rtp,clock-rate=90000,payload=96 ! \
+ queue ! rtph264depay ! h264parse ! avdec_h264 ! \
+ queue ! autovideoconvert ! fpsdisplaysink
+
+AUDIO
+sender===
+
+gst-launch-1.0 audiotestsrc   ! audioconvert   ! audioresample   ! mulawenc   ! rtppcmupay   ! udpsink host=172.25.65.12 port=5001
+
+receiver====
+gst-launch-1.0 udpsrc port=5001 caps="application/x-rtp, media=(string)audio, clock-rate=(int)8000, encoding-name=(string)PCMU, payload=0" \
+! rtppcmudepay ! mulawdec ! audioconvert ! audioresample ! autoaudiosink

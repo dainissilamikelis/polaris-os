@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="mavros_commutator" exec="mavros_commutator" name="mavros_joystic" output="screen"/>
+</launch>
