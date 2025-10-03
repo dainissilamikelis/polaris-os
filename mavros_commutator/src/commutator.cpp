@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <unistd.h>
+#include <bitset>
 #include <map>
 
 enum class JoyHoldButtons { // MAPPING struct
@@ -17,8 +18,12 @@ enum class JoyHoldButtons { // MAPPING struct
     PARKING_GEAR = 1 << 2, // X button
     HIGH_GEAR = 1 << 3, // Y button
     NEUTRAL_GEAR = 1 << 5, // Top-right front button
-    WD_MODE = 1 << 8 // 'Logitech' central button
+    WD_MODE = 1 << 8, // 'Logitech' central button
+    ENABLE = 1 << 7, // Start
+    LED = 1 << 4, // LEDs not holded
+    WIPER = 1 << 6 // WIPER not holded 
 };
+
 
 
 class ButtonMaskProcessor {
@@ -358,14 +363,7 @@ class TAK_telemetry : public rclcpp::Node {
 class JoyReader : public rclcpp::Node {
     public:
     JoyReader(std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons) : Node("joy_reader") {
-        // joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
-        //   "/joy", 10,
-        //   std::bind(&JoyToManual::joy_callback, this, std::placeholders::_1)
-        // );
-
-        // manual_pub_ = this->create_publisher<mavros_msgs::msg::ManualControl>(
-        //   "/mavros/manual_control/send", 10
-        // );
+        // The Node listening maviklink MANUAL_CONTROL messages, then publishes appropriate sensor_msgs::msg::Joy messages under /joy_polaris ROS topic.
 
         RCLCPP_INFO(this->get_logger(), "Joystick commands reader node started.");
 
@@ -389,6 +387,7 @@ class JoyReader : public rclcpp::Node {
         
         
         timer_ = this->create_wall_timer(std::chrono::milliseconds(1), std::bind(&JoyReader::receive_loop, this));
+        joy_publisher_ = this->create_publisher<sensor_msgs::msg::Joy>("/joy_polaris", 1);
         //timer_heartbit_mavlink_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&JoyReader::receive_loop, this));
     }
 
@@ -449,47 +448,110 @@ class JoyReader : public rclcpp::Node {
                             bool wdMode = buttonProcessor.isPressed(JoyHoldButtons::WD_MODE, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::WD_MODE]->SetValue(wdMode);
                             
+                            bool enableJoy = buttonProcessor.isPressed(JoyHoldButtons::ENABLE, ctrl.buttons);
+                            (*oncePressButtons_)[JoyHoldButtons::ENABLE]->SetValue(enableJoy);
 
                             if ((*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->IsOncePressed()) {
-                                std::cout << "pressed!!" << std::endl;
-                                (*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->Reset();
-                                std::cout << "lowGear reset!!" << std::endl;
+                                std::cout << "lowGear pressed!!" << std::endl;
+                                //(*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->Reset();
+                                //std::cout << "lowGear reset!!" << std::endl;
                             }
                             
                             if ((*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->IsOncePressed()) {
-                                std::cout << "pressed!!" << std::endl;
-                                (*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->Reset();
-                                std::cout << "highGear reset!!" << std::endl;
+                                std::cout << "highGear pressed!!" << std::endl;
+                                //(*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->Reset();
+                                //std::cout << "highGear reset!!" << std::endl;
                             }
 
                             if ((*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->IsOncePressed()) {
                                 std::cout << "neutralGear!!" << std::endl;
-                                (*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->Reset();
-                                std::cout << "neutralGear reset!!" << std::endl;
+                                //(*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->Reset();
+                                //std::cout << "neutralGear reset!!" << std::endl;
                             }
 
                             if ((*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->IsOncePressed()) {
                                 std::cout << "parkingGear!!" << std::endl;
-                                (*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->Reset();
-                                std::cout << "parkingGear reset!!" << std::endl;
+                                //(*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->Reset();
+                                //std::cout << "parkingGear reset!!" << std::endl;
                             }
 
                             if ((*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->IsOncePressed()) {
                                 std::cout << "reverseGear!!" << std::endl;
-                                (*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->Reset();
-                                std::cout << "reverseGear reset!!" << std::endl;
+                                //(*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->Reset();
+                                //std::cout << "reverseGear reset!!" << std::endl;
                             }
 
                             if ((*oncePressButtons_)[JoyHoldButtons::WD_MODE]->IsOncePressed()) {
                                 std::cout << "wdMode!!" << std::endl;
-                                (*oncePressButtons_)[JoyHoldButtons::WD_MODE]->Reset();
-                                std::cout << "wdMode reset!!" << std::endl;
+                                //(*oncePressButtons_)[JoyHoldButtons::WD_MODE]->Reset();
+                                //std::cout << "wdMode reset!!" << std::endl;
                             }
                             
+                            // std::cout << "Mavlink struct:" << std::endl;
+                            // std::cout << "axis Steering:" << ctrl.x << std::endl;
+                            // std::cout << "axis Throttle:" << ctrl.y << std::endl;
+                            // std::cout << "axis Break:" << ctrl.z << std::endl;
+                            // std::cout << "axis Steering [ALT]:" << ctrl.r << std::endl;
+                            // std::cout << "axis TURN LEFT | TURN RIGHT | AXIS_STEER_MULT_2:" << ctrl.aux1 << std::endl;
+                            // std::cout << "axis AXIS_BRAKE_PRECHARGET | AXIS_STEER_MULT_1:" << ctrl.aux2 << std::endl;
+                            // std::cout << "axis RESERVED a[1]:" << ctrl.aux3 << std::endl;
+                            // std::cout << "axis RESERVED a[4]:" << ctrl.aux4 << std::endl;
+                            // std::bitset<16> binary(ctrl.buttons);
+                            // std::cout << "buttons: " << binary.to_string() << std::endl;
+
+
                             rclcpp::Time curr = now();
                             rclcpp::Duration time_diff = curr - prev_time_;
                             prev_time_ = curr;
                             int64_t millis = time_diff.nanoseconds() / 1000000;
+
+                            ButtonMaskProcessor button_proc;
+                            auto joy_msg = sensor_msgs::msg::Joy();
+                            joy_msg.header.stamp = this->now();
+                            joy_msg.header.frame_id = "joy_frame_polaris";
+                            joy_msg.axes.resize(8);
+                            joy_msg.axes[0] = ctrl.r / 1000.0; // Steering [ALT]
+                            joy_msg.axes[1] = ctrl.aux3 / 1000.0; // RESERVED
+                            joy_msg.axes[2] = ctrl.z / 1000.0; // Break
+                            joy_msg.axes[3] = ctrl.x / 1000.0; // Steering
+                            joy_msg.axes[4] = ctrl.aux4 / 1000.0; // Reserved
+                            joy_msg.axes[5] = ctrl.y / 1000.0; // Throttle
+                            joy_msg.axes[6] = ctrl.aux1 / 1000; // TURN LEFT | TURN RIGHT | AXIS_STEER_MULT_2
+                            joy_msg.axes[7] = ctrl.aux2 / 1000; // AXIS_BRAKE_PRECHARGET | AXIS_STEER_MULT_1
+                            joy_msg.buttons.resize(11);
+                            if ((*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->IsOncePressed()) {
+                                joy_msg.buttons[0] = 1;
+                            }
+                            if ((*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->IsOncePressed()) {
+                                joy_msg.buttons[1] = 1;
+                            }
+                            if ((*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->IsOncePressed()) {
+                                joy_msg.buttons[2] = 1;
+                            }
+                            if ((*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->IsOncePressed()) {
+                                joy_msg.buttons[3] = 1;
+                            }
+                            if (button_proc.isPressed(JoyHoldButtons::LED, ctrl.buttons)) {
+                                joy_msg.buttons[4] = 1;
+                            }
+                            if ((*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->IsOncePressed()) {
+                                joy_msg.buttons[5] = 1;
+                            }
+
+                            if (button_proc.isPressed(JoyHoldButtons::WIPER, ctrl.buttons)) {
+                                joy_msg.buttons[6] = 1;
+                            }
+                            if ((*oncePressButtons_)[JoyHoldButtons::ENABLE]->IsOncePressed()) {
+                                joy_msg.buttons[7] = 1;
+                            }
+
+                            if ((*oncePressButtons_)[JoyHoldButtons::WD_MODE]->IsOncePressed()) {
+                                joy_msg.buttons[8] = 1;
+                            }
+
+
+                            joy_publisher_->publish(joy_msg);
+
                             //std::cout << "Seq ID: " << ctrl.aux5 << ", Source time diff (millis)=" << ctrl.aux6 << ", Mavlink time diff=" << millis << ", latTime=" << abs(ctrl.aux6 - millis) << std::endl;
                         }
                     }
@@ -505,7 +567,8 @@ class JoyReader : public rclcpp::Node {
     struct sockaddr_in server_addr_{};
     std::thread recv_thread_;
     std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons_;
-     rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_publisher_;
 
     //   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     //   rclcpp::Publisher<mavros_msgs::msg::ManualControl>::SharedPtr manual_pub_;
@@ -521,12 +584,15 @@ int main(int argc, char **argv) {
   auto parkingGear = std::make_shared<ButtonValue>();
   auto reverseGear = std::make_shared<ButtonValue>();
   auto wdMode = std::make_shared<ButtonValue>(); // 2WD/4WD
+  auto enable_joy = std::make_shared<ButtonValue>();
+
   (*oncePress_button_map)[JoyHoldButtons::LOW_GEAR] = lowGear;
   (*oncePress_button_map)[JoyHoldButtons::HIGH_GEAR] = highGear;
   (*oncePress_button_map)[JoyHoldButtons::NEUTRAL_GEAR] = neutralGear;
   (*oncePress_button_map)[JoyHoldButtons::PARKING_GEAR] = parkingGear;
   (*oncePress_button_map)[JoyHoldButtons::REVERSE_GEAR] = reverseGear;
   (*oncePress_button_map)[JoyHoldButtons::WD_MODE] = wdMode;
+  (*oncePress_button_map)[JoyHoldButtons::ENABLE] = enable_joy;
 
   auto lowGearWatch_node = std::make_shared<ButtonPressed>("LowGearWatch", lowGear);
   auto highGearWatch_node = std::make_shared<ButtonPressed>("HighGearWatch", highGear);
@@ -534,7 +600,8 @@ int main(int argc, char **argv) {
   auto parkingGearWatch_node = std::make_shared<ButtonPressed>("ParkingGearWatch", parkingGear);
   auto reverseGearWatch_node = std::make_shared<ButtonPressed>("ReverseGearWatch", reverseGear);
   auto wdModeWatch_node = std::make_shared<ButtonPressed>("WDModeWatch", wdMode);
-  auto takTelemetry_none = std::make_shared<TAK_telemetry>();
+  auto enableJoy_node = std::make_shared<ButtonPressed>("EnableJoyWatch", enable_joy);
+  auto takTelemetry_node = std::make_shared<TAK_telemetry>();
   auto joyReader_node = std::make_shared<JoyReader>(oncePress_button_map);
 
   rclcpp::executors::MultiThreadedExecutor executor;
@@ -544,7 +611,8 @@ int main(int argc, char **argv) {
   executor.add_node(parkingGearWatch_node);
   executor.add_node(reverseGearWatch_node);
   executor.add_node(wdModeWatch_node);
-  executor.add_node(takTelemetry_none);
+  executor.add_node(enableJoy_node);
+  executor.add_node(takTelemetry_node);
 
   executor.add_node(joyReader_node);
 

@@ -104,7 +104,7 @@ float thrtlDefaultMax(uint8_t cmd_type) {
   }
 }
 
-JoystickDemo::JoystickDemo(const rclcpp::NodeOptions &options) : rclcpp::Node("joy_demo", options) {
+JoystickDemo::JoystickDemo(const rclcpp::NodeOptions &options) : rclcpp::Node("joy_polaris", options) {
   startup_stamp_ = ros_clock_.now();
 
   joy_.axes.resize(AXIS_COUNT_X, 0);
@@ -142,7 +142,7 @@ JoystickDemo::JoystickDemo(const rclcpp::NodeOptions &options) : rclcpp::Node("j
   thrtl_dec_ = declare_parameter("thrtl_dec", thrtl_dec_);
 
   using std::placeholders::_1;
-  sub_joy_ = create_subscription<sensor_msgs::msg::Joy>("/joy", 1, std::bind(&JoystickDemo::recvJoy, this, _1));
+  sub_joy_ = create_subscription<sensor_msgs::msg::Joy>("/joy_polaris", 1, std::bind(&JoystickDemo::recvJoy, this, _1));
   sub_veh_vel_ = create_subscription<VehicleVelocity>("vehicle_velocity", 1, std::bind(&JoystickDemo::recvVehVel, this, _1));
 
   data_.brake_joy = 0.0;
@@ -312,7 +312,7 @@ void JoystickDemo::cmdCallback() {
           case Gear::NEUTRAL:
             pub_gear_->publish(msg);
             break;
-          case Gear::DRIVE:
+          case Gear::DRIVE: // HIGH DRIVE
           case Gear::LOW:
             if (gear == Gear::DRIVE || gear == Gear::LOW || velocity > -10 * KPH_TO_MPS) {
               pub_gear_->publish(msg);
@@ -350,7 +350,7 @@ void JoystickDemo::recvJoy(const sensor_msgs::msg::Joy::ConstSharedPtr msg) {
     if (msg->axes.size() == (size_t)AXIS_COUNT_D && msg->buttons.size() == (size_t)BTN_COUNT_D) {
       RCLCPP_ERROR_THROTTLE(
           get_logger(), *get_clock(), 2e3,
-          "Detected Logitech Gamepad F310 in DirectInput (D) mode. Please select (X) with the switch on "
+          "Detected Logitech Gamepad F310 in DirectInput (D) mode. Please select (Start) with the switch on "
           "the back to select XInput mode.");
     }
     if (msg->axes.size() != (size_t)AXIS_COUNT_X) {
@@ -381,9 +381,9 @@ void JoystickDemo::recvJoy(const sensor_msgs::msg::Joy::ConstSharedPtr msg) {
   if (data_.joy_brake_valid) {
     data_.brake_joy = 0.5 - 0.5 * msg->axes[AXIS_BRAKE];
   }
-  if (msg->axes[AXIS_BRAKE_PRECHARGE] < -0.5) {
+  if ((msg->axes[AXIS_BRAKE_PRECHARGE] < -0.5) && (msg->axes[AXIS_STEER_MULT_1] == 0.0)) { // avoiding double press
     data_.brake_precharge = ds_dbw_msgs::msg::BrakeCmd::PRECHARGE_LEVEL_2;
-  } else if (msg->axes[AXIS_BRAKE_PRECHARGE] > 0.5) {
+  } else if ((msg->axes[AXIS_BRAKE_PRECHARGE] > 0.5) && (msg->axes[AXIS_STEER_MULT_1] == 0.0)){ // avoiding double press
     data_.brake_precharge = ds_dbw_msgs::msg::BrakeCmd::PRECHARGE_LEVEL_1;
   } else {
     data_.brake_precharge = ds_dbw_msgs::msg::BrakeCmd::PRECHARGE_NONE;
@@ -398,7 +398,13 @@ void JoystickDemo::recvJoy(const sensor_msgs::msg::Joy::ConstSharedPtr msg) {
     data_.gear_cmd = Gear::DRIVE;
   } else if (msg->buttons[BTN_NEUTRAL]) {
     data_.gear_cmd = Gear::NEUTRAL;
-  } else {
+  } else if (msg->buttons[BTN_LOW]) {
+    data_.gear_cmd = Gear::LOW;
+  } else if (msg->buttons[BTN_WD]) // must be UPDATED !!!
+    // RESERVED for the update
+    data_.gear_cmd = Gear::LOW;
+  }
+  else {
     data_.gear_cmd = Gear::NONE;
   }
 
@@ -408,12 +414,12 @@ void JoystickDemo::recvJoy(const sensor_msgs::msg::Joy::ConstSharedPtr msg) {
   } else {
     data_.steering_joy = msg->axes[AXIS_STEER_2];
   }
-  data_.steering_mult = msg->buttons[BTN_STEER_MULT_1] || msg->buttons[BTN_STEER_MULT_2];
-  data_.steering_cal = msg->buttons[BTN_STEER_MULT_1] && msg->buttons[BTN_STEER_MULT_2];
+  data_.steering_mult = static_cast<bool>(msg->axes[AXIS_STEER_MULT_1]) && !static_cast<bool>(msg->axes[AXIS_STEER_MULT_2]);
+  data_.steering_cal = static_cast<bool>(std::abs(msg->axes[AXIS_STEER_MULT_1] * -1)) && static_cast<bool>(std::abs(msg->axes[AXIS_STEER_MULT_2] * -1)); // double press
 
   // Turn signal
   if (msg->axes[AXIS_TURN_SIG] != joy_.axes[AXIS_TURN_SIG]) {
-    if (std::abs(msg->axes[AXIS_DOOR_ACTION]) < 0.5) {
+    if ((msg->axes[AXIS_TURN_SIG] != 0.0) && (msg->axes[AXIS_STEER_MULT_1] == 0.0)) {
       switch (data_.turn_signal_cmd) {
         case TurnSignal::NONE:
           if (msg->axes[AXIS_TURN_SIG] < -0.5) {
@@ -440,43 +446,43 @@ void JoystickDemo::recvJoy(const sensor_msgs::msg::Joy::ConstSharedPtr msg) {
     }
   }
 
-  #if 0
-  // Doors and trunk
-  data_.door_select = DoorCmd::NONE;
-  data_.door_action = DoorCmd::NONE;
-  if (msg->buttons[BTN_TRUNK_OPEN]) {
-    data_.door_select = DoorCmd::TRUNK;
-    data_.door_action = DoorCmd::OPEN;
-  } else if (msg->buttons[BTN_TRUNK_CLOSE]) {
-    data_.door_select = DoorCmd::TRUNK;
-    data_.door_action = DoorCmd::CLOSE;
-  }
-  if (msg->axes[AXIS_DOOR_ACTION] > 0.5) {
-    if (msg->axes[AXIS_DOOR_SELECT] < -0.5) {
-      data_.door_select = DoorCmd::RIGHT;
-      data_.door_action = DoorCmd::OPEN;
-    } else if (msg->axes[AXIS_TURN_SIG] > 0.5) {
-      data_.door_select = DoorCmd::LEFT;
-      data_.door_action = DoorCmd::OPEN;
-    }
-  }
-  if (msg->axes[AXIS_DOOR_ACTION] < -0.5) {
-    if (msg->axes[AXIS_DOOR_SELECT] < -0.5) {
-      data_.door_select = DoorCmd::RIGHT;
-      data_.door_action = DoorCmd::CLOSE;
-    } else if (msg->axes[AXIS_TURN_SIG] > 0.5) {
-      data_.door_select = DoorCmd::LEFT;
-      data_.door_action = DoorCmd::CLOSE;
-    }
-  }
-  #endif
+  // #if 0
+  // // Doors and trunk
+  // data_.door_select = DoorCmd::NONE;
+  // data_.door_action = DoorCmd::NONE;
+  // if (msg->buttons[BTN_TRUNK_OPEN]) {
+  //   data_.door_select = DoorCmd::TRUNK;
+  //   data_.door_action = DoorCmd::OPEN;
+  // } else if (msg->buttons[BTN_TRUNK_CLOSE]) {
+  //   data_.door_select = DoorCmd::TRUNK;
+  //   data_.door_action = DoorCmd::CLOSE;
+  // }
+  // if (msg->axes[AXIS_DOOR_ACTION] > 0.5) {
+  //   if (msg->axes[AXIS_DOOR_SELECT] < -0.5) {
+  //     data_.door_select = DoorCmd::RIGHT;
+  //     data_.door_action = DoorCmd::OPEN;
+  //   } else if (msg->axes[AXIS_TURN_SIG] > 0.5) {
+  //     data_.door_select = DoorCmd::LEFT;
+  //     data_.door_action = DoorCmd::OPEN;
+  //   }
+  // }
+  // if (msg->axes[AXIS_DOOR_ACTION] < -0.5) {
+  //   if (msg->axes[AXIS_DOOR_SELECT] < -0.5) {
+  //     data_.door_select = DoorCmd::RIGHT;
+  //     data_.door_action = DoorCmd::CLOSE;
+  //   } else if (msg->axes[AXIS_TURN_SIG] > 0.5) {
+  //     data_.door_select = DoorCmd::LEFT;
+  //     data_.door_action = DoorCmd::CLOSE;
+  //   }
+  // }
+  // #endif
 
   // Optional enable and disable buttons
   if (enable_) {
     if (msg->buttons[BTN_ENABLE]) {
       pub_enable_->publish(std_msgs::msg::Empty());
     }
-    if (msg->buttons[BTN_DISABLE]) {
+    if (!msg->buttons[BTN_ENABLE]) { // BTN_DISTABLE, redefined
       pub_disable_->publish(std_msgs::msg::Empty());
     }
   }

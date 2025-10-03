@@ -47,10 +47,10 @@ private:
     
     auto manual = mavros_msgs::msg::ManualControl();
 
-    manual.x = static_cast<int16_t>(msg->axes[0] * 1000);  // Roll
-    manual.y = static_cast<int16_t>(msg->axes[1] * 1000);  // Pitch
-    manual.z = static_cast<int16_t>(msg->axes[2] * 1000);  // Throttle
-    manual.r = static_cast<int16_t>(msg->axes[3] * 1000);  // Yaw
+    manual.x = static_cast<int16_t>(msg->axes[3] * 1000);  // Steering
+    manual.y = static_cast<int16_t>(msg->axes[5] * 1000);  // Throttle
+    manual.z = static_cast<int16_t>(msg->axes[2] * 1000);  // Break
+    manual.r = static_cast<int16_t>(msg->axes[0] * 1000);  // Steering [ALT]
 
     uint16_t buttons = 0;
     for (size_t i = 0; i < msg->buttons.size(); ++i) {
@@ -58,10 +58,16 @@ private:
         buttons |= (1 << i);
       }
     }
+
+    manual.aux1 = static_cast<int16_t>(msg->axes[6] * 1000);  // TURN LEFT | TURN RIGHT | AXIS_STEER_MULT_2
+    manual.aux2 = static_cast<int16_t>(msg->axes[7] * 1000);  // AXIS_BRAKE_PRECHARGET | AXIS_STEER_MULT_1
+    manual.aux3 = static_cast<int16_t>(msg->axes[1] * 1000);  // RESERVED
+    manual.aux4 = static_cast<int16_t>(msg->axes[4] * 1000);  // RESERVED
+    
     manual.buttons = buttons;
     //manual.target = 1;
 
-    manual_pub_->publish(manual);
+    manual_pub_->publish(manual); // ??
 
     mavlink_message_t mav_msg;
 
@@ -75,14 +81,14 @@ private:
     manual.z,
     manual.r,
     manual.buttons,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
+    0, 
+    0, 
+    0, 
+    0, 
+    manual.aux1, 
+    manual.aux2, 
+    manual.aux3, 
+    manual.aux4, 
     0,
     time_diff_milisec);
 

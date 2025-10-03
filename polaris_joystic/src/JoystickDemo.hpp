@@ -156,7 +156,7 @@ private:
     if (ros_clock_.now() - msg_gear_stamp_ < 500ms) {
       return msg_gear_.gear.value;
     }
-    return ds_dbw_msgs::msg::Gear::NONE;
+    return ds_dbw_msgs::msg::Gear::NONE; // if the timeout occured !
   }
 
   // Vehicle velocity
@@ -194,29 +194,31 @@ private:
   float last_steering_filt_output_ = 0;
   bool joy_warned_ = false;
 
-  enum {
-    BTN_PARK = 3,
-    BTN_REVERSE = 1,
-    BTN_NEUTRAL = 2,
-    BTN_DRIVE = 0,
-    BTN_ENABLE = 5,
-    BTN_DISABLE = 4,
-    BTN_STEER_MULT_1 = 6,
-    BTN_STEER_MULT_2 = 7,
-    BTN_TRUNK_OPEN = 9,
-    BTN_TRUNK_CLOSE = 10,
-    BTN_COUNT_X = 11,
-    BTN_COUNT_D = 12,
-    AXIS_THROTTLE = 5,
-    AXIS_BRAKE = 2,
-    AXIS_STEER_1 = 0,
-    AXIS_STEER_2 = 3,
-    AXIS_TURN_SIG = 6,
-    AXIS_BRAKE_PRECHARGE = 7,
-    AXIS_DOOR_SELECT = 6,
-    AXIS_DOOR_ACTION = 7,
-    AXIS_COUNT_D = 6,
-    AXIS_COUNT_X = 8,
+  enum { // buttons mapping table for the Joystic
+    BTN_LOW = 0 // remapped
+    BTN_PARK = 2, // remapped
+    BTN_REVERSE = 1, // remapped
+    BTN_NEUTRAL = 5, // remapped
+    BTN_DRIVE = 3, // DRIVE HIGH, remapped
+    BTN_WD = 8, // WD2/WD4, remapped
+    BTN_ENABLE = 7, // remapped
+    // BTN_DISABLE = 4, //  removed
+    //BTN_TRUNK_OPEN = 9, // removed
+    //BTN_TRUNK_CLOSE = 10, // removed
+    BTN_COUNT_X = 11, // F310 gamepad
+    BTN_COUNT_D = 11, // F310 gamepad
+    AXIS_THROTTLE = 5, // OK original, remapped
+    AXIS_BRAKE = 2, // OK original, remapped
+    AXIS_STEER_1 = 0, // OK original, remapped
+    AXIS_STEER_2 = 3, // OK original, remapped
+    AXIS_TURN_SIG = 6, // OK original, remapped
+    AXIS_BRAKE_PRECHARGE = 7, // OK original, remapped, enabled if AXIS_STEER_MULT_2 equal to 0.0
+    AXIS_STEER_MULT_1 = 7, // remapped on left axes (vertical arrows) BTN_STEER_MULT_1, if AXIS_STEER_MULT_1 == -1 && AXIS_STEER_MULT_2 == -1 then calibration is enabled
+    AXIS_STEER_MULT_2 = 6, // remapped on left axes (horizontal arrows) BTN_STEER_MULT_2, if AXIS_STEER_MULT_1 == -1 && AXIS_STEER_MULT_2 == -1 then calibration is enabled
+    //AXIS_DOOR_SELECT = 6, // removed
+    //AXIS_DOOR_ACTION = 7, // removed
+    AXIS_COUNT_D = 8, // F310 gamepad
+    AXIS_COUNT_X = 8, // F310 gamepad
   };
 };
 
