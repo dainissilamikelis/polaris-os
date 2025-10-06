@@ -61,7 +61,6 @@ class ButtonValue {
         void Reset() {
         // Set IsOncePressed = false and the current value = false
             pressed_ = false;
-            value_ = false;
         }
 
         bool IsOncePressed() {
@@ -72,9 +71,10 @@ class ButtonValue {
         void SetPressed() {
         // Set IsOncePressed = tru if a button holding time was reached
             pressed_ = true;
-            value_ = false;
 
         }
+
+
 
         rclcpp::Time current_time;
     private:
@@ -103,29 +103,48 @@ class ButtonPressed : public rclcpp::Node {
     private:
         std::shared_ptr<ButtonValue> button_value_;
         rclcpp::TimerBase::SharedPtr timer_;
-        uint16_t prev_value_;
-        rclcpp::Time prev_time_ = this->now();
+        uint16_t prev_value_ = 0;
+        rclcpp::Time onButton_time_ = this->now();
+        rclcpp::Time change_time_ = this->now();
         double hold_time_ = 2.0; // secs
+        bool enabled_ = false;
+         
 
         void process_value() {
-            bool curr_value = button_value_->GetValue();
-            if (prev_value_ != curr_value) {
-                prev_time_ =  this->now(); // reset time
+            uint16_t curr_value = button_value_->GetValue();
+   
+            if (curr_value != prev_value_) {
+                change_time_ =  this->now();
+                if (curr_value == 1) {
+                    enabled_ = true;
+                } else {
+                    enabled_ = false;
+                }
                 prev_value_ = curr_value;
+                
             }
             
-            if (!button_value_->IsOncePressed()) { // a button is not enabled
-                if (prev_value_ == 1) { // a button is still pressed
-                    rclcpp::Duration time_diff = this->now() - prev_time_;
-                    double seconds = time_diff.seconds();
 
-                    if (seconds >= hold_time_) {
+            rclcpp::Duration time_diff = this->now() - change_time_;
+            double seconds = time_diff.seconds();
+            if (seconds > 30.0) change_time_ =  this->now(); // reset clock
+
+            if (seconds >= hold_time_) {
+                
+                if (curr_value == 1 && enabled_) {
+                    if (!button_value_->IsOncePressed()) {
                         button_value_->SetPressed();
+                        
+                    } else {
+                        button_value_->Reset();
                     }
+                    enabled_ = false;
                 }
             }
+
+             
+
         }
-    
 };
 
 class TAK_telemetry : public rclcpp::Node {
@@ -399,6 +418,25 @@ class JoyReader : public rclcpp::Node {
     }
 
     private:
+
+        void set_pending_gear () {
+            // leaves only single pending gear if multiple buttons are pressed
+            for (const auto& [key, valuePtr] : *oncePressButtons_) {
+                if ((*oncePressButtons_)[key]->IsOncePressed()) {
+                    //std::cout << "IsOncePressed" << static_cast<int>(key) << std::endl;
+                    for (const auto& [key_other, valuePtr_other] : *oncePressButtons_) {
+                        if (key_other != key && (*oncePressButtons_)[key_other]->IsOncePressed()) {
+                            (*oncePressButtons_)[key_other]->Reset();
+                            //std::cout << "IsOncePressed reset" << static_cast<int>(key_other) << std::endl;
+                        }
+                    }
+                    break;
+                }
+                
+            }
+        }
+
+ 
         void receive_loop() {
             char buffer[1024];
             sockaddr_in sender{};
@@ -451,41 +489,43 @@ class JoyReader : public rclcpp::Node {
                             bool enableJoy = buttonProcessor.isPressed(JoyHoldButtons::ENABLE, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::ENABLE]->SetValue(enableJoy);
 
-                            if ((*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->IsOncePressed()) {
-                                std::cout << "lowGear pressed!!" << std::endl;
-                                //(*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->Reset();
-                                //std::cout << "lowGear reset!!" << std::endl;
-                            }
+                            set_pending_gear(); // choose only 
+
+                            // if ((*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->IsOncePressed()) {
+                            //     std::cout << "lowGear pressed!!" << std::endl;
+                            //     //(*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->Reset();
+                            //     //std::cout << "lowGear reset!!" << std::endl;
+                            // }
                             
-                            if ((*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->IsOncePressed()) {
-                                std::cout << "highGear pressed!!" << std::endl;
-                                //(*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->Reset();
-                                //std::cout << "highGear reset!!" << std::endl;
-                            }
+                            // if ((*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->IsOncePressed()) {
+                            //     std::cout << "highGear pressed!!" << std::endl;
+                            //     //(*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->Reset();
+                            //     //std::cout << "highGear reset!!" << std::endl;
+                            // }
 
-                            if ((*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->IsOncePressed()) {
-                                std::cout << "neutralGear!!" << std::endl;
-                                //(*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->Reset();
-                                //std::cout << "neutralGear reset!!" << std::endl;
-                            }
+                            // if ((*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->IsOncePressed()) {
+                            //     std::cout << "neutralGear!!" << std::endl;
+                            //     //(*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->Reset();
+                            //     //std::cout << "neutralGear reset!!" << std::endl;
+                            // }
 
-                            if ((*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->IsOncePressed()) {
-                                std::cout << "parkingGear!!" << std::endl;
-                                //(*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->Reset();
-                                //std::cout << "parkingGear reset!!" << std::endl;
-                            }
+                            // if ((*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->IsOncePressed()) {
+                            //     std::cout << "parkingGear!!" << std::endl;
+                            //     //(*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->Reset();
+                            //     //std::cout << "parkingGear reset!!" << std::endl;
+                            // }
 
-                            if ((*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->IsOncePressed()) {
-                                std::cout << "reverseGear!!" << std::endl;
-                                //(*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->Reset();
-                                //std::cout << "reverseGear reset!!" << std::endl;
-                            }
+                            // if ((*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->IsOncePressed()) {
+                            //     std::cout << "reverseGear!!" << std::endl;
+                            //     //(*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->Reset();
+                            //     //std::cout << "reverseGear reset!!" << std::endl;
+                            // }
 
-                            if ((*oncePressButtons_)[JoyHoldButtons::WD_MODE]->IsOncePressed()) {
-                                std::cout << "wdMode!!" << std::endl;
-                                //(*oncePressButtons_)[JoyHoldButtons::WD_MODE]->Reset();
-                                //std::cout << "wdMode reset!!" << std::endl;
-                            }
+                            // if ((*oncePressButtons_)[JoyHoldButtons::WD_MODE]->IsOncePressed()) {
+                            //     std::cout << "wdMode!!" << std::endl;
+                            //     //(*oncePressButtons_)[JoyHoldButtons::WD_MODE]->Reset();
+                            //     //std::cout << "wdMode reset!!" << std::endl;
+                            // }
                             
                             // std::cout << "Mavlink struct:" << std::endl;
                             // std::cout << "axis Steering:" << ctrl.x << std::endl;
