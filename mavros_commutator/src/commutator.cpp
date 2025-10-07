@@ -24,6 +24,20 @@ enum class JoyHoldButtons { // MAPPING struct
     WIPER = 1 << 6 // WIPER not holded 
 };
 
+std::string to_string(JoyHoldButtons button) {
+    switch (button) {
+        case JoyHoldButtons::LOW_GEAR: return "LOW_GEAR";
+        case JoyHoldButtons::REVERSE_GEAR: return "REVERSE_GEAR";
+        case JoyHoldButtons::PARKING_GEAR: return "PARKING_GEAR";
+        case JoyHoldButtons::HIGH_GEAR: return "HIGH_GEAR";
+        case JoyHoldButtons::LED: return "LED";
+        case JoyHoldButtons::NEUTRAL_GEAR: return "NEUTRAL_GEAR";
+        case JoyHoldButtons::WIPER: return "WIPER";
+        case JoyHoldButtons::ENABLE: return "ENABLE";
+        case JoyHoldButtons::WD_MODE: return "WD_MODE";
+        default: return "UNKNOWN_BUTTON";
+    }
+}
 
 
 class ButtonMaskProcessor {
@@ -48,6 +62,22 @@ class ButtonValue {
             value_ = false;
         }
 
+        bool operator<(const ButtonValue& other) const {
+            return last_update_time_ < other.last_update_time_;
+        }
+
+        bool operator<=(const ButtonValue& other) const {
+            return last_update_time_ <= other.last_update_time_;
+        }
+
+        bool operator>(const ButtonValue& other) const {
+            return last_update_time_ > other.last_update_time_;
+        }
+
+        bool operator>=(const ButtonValue& other) const {
+            return last_update_time_ >= other.last_update_time_;
+        }
+
         void SetValue (bool value){
         // Set new value of a button
             value_ = value;
@@ -68,18 +98,20 @@ class ButtonValue {
             return pressed_;
         }
 
-        void SetPressed() {
-        // Set IsOncePressed = tru if a button holding time was reached
+        void SetPressed(const rclcpp::Time& curr_time) {
+        // Set IsOncePressed = true if a button holding time was reached
             pressed_ = true;
-
+            last_update_time_ = curr_time;
         }
 
 
 
-        rclcpp::Time current_time;
+        //rclcpp::Time update_time;
+        rclcpp::Time last_update_time_;
     private:
         bool value_;
         bool pressed_;
+        //rclcpp::Time last_update_time_;
         
 
 };
@@ -133,7 +165,7 @@ class ButtonPressed : public rclcpp::Node {
                 
                 if (curr_value == 1 && enabled_) {
                     if (!button_value_->IsOncePressed()) {
-                        button_value_->SetPressed();
+                        button_value_->SetPressed(this->now());
                         
                     } else {
                         button_value_->Reset();
@@ -419,21 +451,44 @@ class JoyReader : public rclcpp::Node {
 
     private:
 
-        void set_pending_gear () {
-            // leaves only single pending gear if multiple buttons are pressed
+        void filter_pending_gear () {
+            // filters only a single pending gear if multiple buttons are active
+
+            /* find the latest (by time) holding button */
+            auto latest = (*oncePressButtons_).begin()->first;
+            bool present = false;
             for (const auto& [key, valuePtr] : *oncePressButtons_) {
-                if ((*oncePressButtons_)[key]->IsOncePressed()) {
-                    //std::cout << "IsOncePressed" << static_cast<int>(key) << std::endl;
-                    for (const auto& [key_other, valuePtr_other] : *oncePressButtons_) {
-                        if (key_other != key && (*oncePressButtons_)[key_other]->IsOncePressed()) {
-                            (*oncePressButtons_)[key_other]->Reset();
-                            //std::cout << "IsOncePressed reset" << static_cast<int>(key_other) << std::endl;
-                        }
-                    }
-                    break;
-                }
-                
+                if (key == JoyHoldButtons::WD_MODE || key == JoyHoldButtons::ENABLE) continue; // ignore not GEAR buttons
+                if (!(*oncePressButtons_)[key]->IsOncePressed()) continue; // ignore not active GEAR buttons
+                latest = key;
+                present = true;
+                break;
             }
+            if (!present) return; // there are not any GEAR button active, return
+
+            
+
+            for (const auto& [key, valuePtr] : *oncePressButtons_) {
+                if (key == JoyHoldButtons::WD_MODE || key == JoyHoldButtons::ENABLE) continue; // ignore not GEAR buttons
+                if (!(*oncePressButtons_)[key]->IsOncePressed()) continue; // ignore not active GEAR buttons
+
+                if (*(*oncePressButtons_)[key] > *(*oncePressButtons_)[latest]) {
+                    latest = key;
+                }
+            }
+
+            for (const auto& [key, valuePtr] : *oncePressButtons_) {
+                if (key == JoyHoldButtons::WD_MODE || key == JoyHoldButtons::ENABLE) continue; // ignore not GEAR buttons
+                if (!(*oncePressButtons_)[key]->IsOncePressed()) continue; // ignore not active GEAR buttons
+                
+                if (key != latest) {
+                    (*oncePressButtons_)[key]->Reset();
+                    
+                }
+
+            }
+
+
         }
 
  
@@ -471,25 +526,32 @@ class JoyReader : public rclcpp::Node {
                             bool lowGear = buttonProcessor.isPressed(JoyHoldButtons::LOW_GEAR, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->SetValue(lowGear);
                             
+                            
+                            
                             bool reverseGear = buttonProcessor.isPressed(JoyHoldButtons::REVERSE_GEAR, ctrl.buttons);
-                            (*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->SetValue(reverseGear); 
-
+                            (*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->SetValue(reverseGear);
+                            
                             bool highGear = buttonProcessor.isPressed(JoyHoldButtons::HIGH_GEAR, ctrl.buttons);
-                            (*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->SetValue(highGear);                            
+                            (*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->SetValue(highGear);
+                                                    
 
                             bool neutralGear = buttonProcessor.isPressed(JoyHoldButtons::NEUTRAL_GEAR, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->SetValue(neutralGear);
+                            
 
                             bool parkingGear = buttonProcessor.isPressed(JoyHoldButtons::PARKING_GEAR, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->SetValue(parkingGear);
+                            
 
                             bool wdMode = buttonProcessor.isPressed(JoyHoldButtons::WD_MODE, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::WD_MODE]->SetValue(wdMode);
                             
+                            
                             bool enableJoy = buttonProcessor.isPressed(JoyHoldButtons::ENABLE, ctrl.buttons);
                             (*oncePressButtons_)[JoyHoldButtons::ENABLE]->SetValue(enableJoy);
+                            
 
-                            set_pending_gear(); // choose only 
+                            filter_pending_gear(); // choose only single GEAR to activate
 
                             // if ((*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->IsOncePressed()) {
                             //     std::cout << "lowGear pressed!!" << std::endl;
