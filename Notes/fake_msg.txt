@@ -1,0 +1,18 @@
+ros2 topic pub /gear_report ds_dbw_msgs/msg/GearReport "{
+  header: {stamp: {sec: 0, nanosec: 0}, frame_id: 'base_link'},
+  gear: {value: 1},
+  cmd: {value: 1},
+  driver: {value: 0},
+  reject: {value: 0},
+  power_latched: true,
+  external_control: false,
+  ready: true,
+  override_active: false,
+  override_other: false,
+  fault: false,
+  bad_crc: false,
+  degraded: false,
+  actuator_temp: 42.5,
+  req_brake_cal: false,
+  cmd_src: {value: 0}
+}"

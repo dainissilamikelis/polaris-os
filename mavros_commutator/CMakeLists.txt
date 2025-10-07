@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(mavros_msgs REQUIRED)
 find_package(mavlink REQUIRED)
+find_package(ds_dbw_msgs REQUIRED)
 
 
 include_directories(
@@ -18,7 +19,7 @@ include_directories(
 )
 
 add_executable(mavros_commutator src/commutator.cpp)
-ament_target_dependencies(mavros_commutator rclcpp sensor_msgs mavros_msgs)
+ament_target_dependencies(mavros_commutator rclcpp sensor_msgs mavros_msgs ds_dbw_msgs)
 
 install(TARGETS
   mavros_commutator

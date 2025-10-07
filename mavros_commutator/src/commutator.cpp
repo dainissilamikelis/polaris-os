@@ -2,6 +2,9 @@
 #include "sensor_msgs/msg/joy.hpp"
 #include "mavros_msgs/msg/manual_control.hpp"
 #include "mavros_msgs/msg/mavlink.hpp"
+
+#include "ds_dbw_msgs/msg/gear_report.hpp"
+
 #include <mavlink/v2.0/common/mavlink.h>
 
 #include <sys/socket.h>
@@ -12,6 +15,15 @@
 #include <bitset>
 #include <map>
 
+struct GearState {
+    uint8_t gear_current;
+    uint8_t gear_pending;
+    uint8_t gear_reject;
+    uint8_t gear_cmd;
+    bool gear_ready;
+    bool gear_fault;
+};
+
 enum class JoyHoldButtons { // MAPPING struct
     LOW_GEAR = 1 << 0, // A button
     REVERSE_GEAR = 1 << 1, // B button
@@ -21,7 +33,8 @@ enum class JoyHoldButtons { // MAPPING struct
     WD_MODE = 1 << 8, // 'Logitech' central button
     ENABLE = 1 << 7, // Start
     LED = 1 << 4, // LEDs not holded
-    WIPER = 1 << 6 // WIPER not holded 
+    WIPER = 1 << 6, // WIPER not holded
+    NONE = 1 << 16 // NONE - undetermined value
 };
 
 std::string to_string(JoyHoldButtons button) {
@@ -35,6 +48,7 @@ std::string to_string(JoyHoldButtons button) {
         case JoyHoldButtons::WIPER: return "WIPER";
         case JoyHoldButtons::ENABLE: return "ENABLE";
         case JoyHoldButtons::WD_MODE: return "WD_MODE";
+        case JoyHoldButtons::NONE: return "NONE";
         default: return "UNKNOWN_BUTTON";
     }
 }
@@ -116,6 +130,98 @@ class ButtonValue {
 
 };
 
+class UvgGearMonitor: public rclcpp::Node {
+    public:
+        explicit UvgGearMonitor(std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons, std::shared_ptr<GearState> gear_state) : Node("UvgMonitor") {
+            
+            RCLCPP_INFO(this->get_logger(), "UvgGearMonitor '%s' node started.", this->get_name());
+
+            gear_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::GearReport>("/vehicle/gear_report", 1,
+                                std::bind(&UvgGearMonitor::gear_report_callback, this, std::placeholders::_1));
+
+            oncePressButtons_ = oncePressButtons;
+
+            gear_state_ = gear_state; // std::make_shared<GearState>();
+            gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::PARK;
+
+            timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&UvgGearMonitor::check_state_, this));
+
+        }
+
+
+    private:
+        void check_state_(){ // check state accordingly to the pending gear, and reset the button
+            // check last time actual data arrived from UGV
+            if (gear_report_sub_->get_publisher_count() == 0) {
+            //if ((this->now().seconds() - gear_state_->last_update_time_sec) >= 0.05) {
+                 RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gear_report' msgs published ('%s')?", this->get_name());
+
+                 // reset pending gear
+                 gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::NONE;
+            }
+
+            if (gear_state_->gear_cmd == gear_state_->gear_pending) {
+                if (gear_state_->gear_reject == ds_dbw_msgs::msg::GearReject::NONE) {
+                    if (!gear_state_->gear_fault) {
+                        if (gear_state_->gear_current == gear_state_->gear_pending) {
+                            
+                            // determine the button 
+
+                            JoyHoldButtons key;
+                            switch (gear_state_->gear_current) {
+                                case ds_dbw_msgs::msg::Gear::PARK:
+                                    key = JoyHoldButtons::PARKING_GEAR;
+                                    break;
+
+                                case ds_dbw_msgs::msg::Gear::REVERSE:
+                                    key = JoyHoldButtons::REVERSE_GEAR;
+                                    break;
+
+                                case ds_dbw_msgs::msg::Gear::NEUTRAL:
+                                    key = JoyHoldButtons::NEUTRAL_GEAR;
+                                    break;
+                                
+                                case ds_dbw_msgs::msg::Gear::DRIVE:
+                                    key = JoyHoldButtons::HIGH_GEAR;
+                                    break;
+
+                                case ds_dbw_msgs::msg::Gear::LOW:
+                                    key = JoyHoldButtons::LOW_GEAR;
+                                    break;  
+                                
+                                default:
+                                    key = JoyHoldButtons::NONE;
+                            }
+                            // reset the button!
+                            if (key != JoyHoldButtons::NONE) {
+                                if ((*oncePressButtons_)[key]->IsOncePressed()) {
+                                    (*oncePressButtons_)[key]->Reset();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
+
+
+        void gear_report_callback(const std::shared_ptr<const ds_dbw_msgs::msg::GearReport>& msg) {
+            //RCLCPP_INFO(this->get_logger(), "gear_report_callback '%s'", this->get_name());
+            gear_state_->gear_current = msg->gear.value;
+            gear_state_->gear_reject = msg->reject.value;
+            gear_state_->gear_cmd = msg->cmd.value;
+            gear_state_->gear_ready = msg->ready;
+            gear_state_->gear_fault = msg->fault;
+        }
+        
+        rclcpp::Subscription<ds_dbw_msgs::msg::GearReport>::SharedPtr gear_report_sub_;
+        std::shared_ptr<GearState> gear_state_;
+        std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons_;
+        rclcpp::TimerBase::SharedPtr timer_;
+        rclcpp::Time last_msg_arrived_;
+};
+
 class ButtonPressed : public rclcpp::Node {
 // The class handles joystick button press events, provided a predefined time delay condition is met.
     public:
@@ -183,7 +289,7 @@ class TAK_telemetry : public rclcpp::Node {
 // The class communicates mavlink messages to the TAK
     public:
         TAK_telemetry() : rclcpp::Node("tak_telemetry_node") {
-            RCLCPP_INFO(this->get_logger(), "ButtonPressedNode '%s' node started.", this->get_name());
+            RCLCPP_INFO(this->get_logger(), "TAKTelemetryNode '%s' node started.", this->get_name());
 
             sock_ = socket(AF_INET, SOCK_DGRAM, 0);
             if (sock_ < 0) {
@@ -413,7 +519,7 @@ class TAK_telemetry : public rclcpp::Node {
 
 class JoyReader : public rclcpp::Node {
     public:
-    JoyReader(std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons) : Node("joy_reader") {
+    JoyReader(std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons, std::shared_ptr<GearState> gear_state) : Node("joy_reader") {
         // The Node listening maviklink MANUAL_CONTROL messages, then publishes appropriate sensor_msgs::msg::Joy messages under /joy_polaris ROS topic.
 
         RCLCPP_INFO(this->get_logger(), "Joystick commands reader node started.");
@@ -433,6 +539,7 @@ class JoyReader : public rclcpp::Node {
         }
 
         oncePressButtons_ = oncePressButtons;
+        gear_state_ = gear_state;
         using namespace std::chrono_literals;
         prev_time_ = now();
         
@@ -488,6 +595,31 @@ class JoyReader : public rclcpp::Node {
 
             }
 
+            // Ser Pending GEAR
+            switch (latest) {
+                case JoyHoldButtons::PARKING_GEAR:
+                    gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::PARK;
+                    break;
+
+                case JoyHoldButtons::REVERSE_GEAR:
+                    gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::REVERSE;
+                    break;
+
+                case JoyHoldButtons::NEUTRAL_GEAR:
+                    gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::NEUTRAL;
+                    break;
+                
+                case JoyHoldButtons::HIGH_GEAR:
+                    gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::DRIVE;
+                    break;
+
+                case JoyHoldButtons::LOW_GEAR:
+                    gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::LOW;
+                    break;  
+                
+                default:
+                    gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::NONE;
+            }
 
         }
 
@@ -669,6 +801,7 @@ class JoyReader : public rclcpp::Node {
     struct sockaddr_in server_addr_{};
     std::thread recv_thread_;
     std::shared_ptr<std::map<JoyHoldButtons, std::shared_ptr<ButtonValue>>> oncePressButtons_;
+    std::shared_ptr<GearState> gear_state_; // shared gear's state struct
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_publisher_;
 
@@ -704,7 +837,10 @@ int main(int argc, char **argv) {
   auto wdModeWatch_node = std::make_shared<ButtonPressed>("WDModeWatch", wdMode);
   auto enableJoy_node = std::make_shared<ButtonPressed>("EnableJoyWatch", enable_joy);
   auto takTelemetry_node = std::make_shared<TAK_telemetry>();
-  auto joyReader_node = std::make_shared<JoyReader>(oncePress_button_map);
+
+  std::shared_ptr<GearState> gear_state = std::make_shared<GearState>();
+  auto gearMonitor_node = std::make_shared<UvgGearMonitor>(oncePress_button_map, gear_state);
+  auto joyReader_node = std::make_shared<JoyReader>(oncePress_button_map, gear_state);
 
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(lowGearWatch_node);
@@ -715,6 +851,7 @@ int main(int argc, char **argv) {
   executor.add_node(wdModeWatch_node);
   executor.add_node(enableJoy_node);
   executor.add_node(takTelemetry_node);
+  executor.add_node(gearMonitor_node);
 
   executor.add_node(joyReader_node);
 
