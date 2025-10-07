@@ -3,6 +3,8 @@
 #include "mavros_msgs/msg/manual_control.hpp"
 #include "mavros_msgs/msg/mavlink.hpp"
 #include <mavlink/v2.0/common/mavlink.h>
+#include "ds_dbw_msgs/msg/gear_report.hpp"
+#include "ds_dbw_msgs/msg/steering_report.hpp"
 #include "ds_dbw_msgs/msg/fuel_level.hpp"
 #include "ds_dbw_msgs/msg/vehicle_velocity.hpp"
 #include "ds_dbw_msgs/msg/system_report.hpp"
@@ -22,44 +24,54 @@ public:
 
     // subscribe UGV FUEL report
     fuel_sub_ = this->create_subscription<ds_dbw_msgs::msg::FuelLevel>(
-      "/vehicle/fuel_level", 10,
+      "/vehicle/fuel_level", 1,
       std::bind(&UGVTelemetry::fuel_callback, this, std::placeholders::_1)
     );
 
     // subscribe UGV current velocity
     velocity_sub_ = this->create_subscription<ds_dbw_msgs::msg::VehicleVelocity>(
-      "/vehicle/vehicle_velocity", 10,
+      "/vehicle/vehicle_velocity", 1,
       std::bind(&UGVTelemetry::velocity_callback, this, std::placeholders::_1)
     );
 
     // subscribe UGV system's status
     sys_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::SystemReport>(
-      "/vehicle/system/report", 10,
+      "/vehicle/system/report", 1,
       std::bind(&UGVTelemetry::system_report_callback, this, std::placeholders::_1)
     );
 
     // subscribe UGV remote report
     rem_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::RemoteReport>(
-      "/vehicle/remote/report", 10,
+      "/vehicle/remote/report", 1,
       std::bind(&UGVTelemetry::remote_report_callback, this, std::placeholders::_1)
     );
 
     // subscribe UGV drive mode status
     drive_mode_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::DriveModeReport>(
-      "/vehicle/drive_mode/report", 10,
+      "/vehicle/drive_mode/report", 1,
       std::bind(&UGVTelemetry::drive_mode_report_callback, this, std::placeholders::_1)
     );
 
     // subscribe GPS info
     gps_sub_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
-      "/vehicle/gps/fix", 10,
+      "/vehicle/gps/fix", 1,
       std::bind(&UGVTelemetry::gps_callback, this, std::placeholders::_1)
     );
     
+    // subscribe Steering info
+    steering_sub_ = this->create_subscription<ds_dbw_msgs::msg::SteeringReport>(
+      "/vehicle/steering_report", 1,
+      std::bind(&UGVTelemetry::steering_report_callback, this, std::placeholders::_1));
+
+    // subscribe Gear info
+    gear_sub_ = this->create_subscription<ds_dbw_msgs::msg::GearReport>(
+      "/vehicle/gear_report", 1,
+      std::bind(&UGVTelemetry::gear_report_callback, this, std::placeholders::_1));
 
     // manual_pub_ = this->create_publisher<mavros_msgs::msg::ManualControl>(
     //   "/mavros/manual_control/send", 10
     // );
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&UGVTelemetry::check_subs_, this));
 
     RCLCPP_INFO(this->get_logger(), "MAVROS UGVTelemetry node started.");
 
@@ -80,6 +92,51 @@ private:
     float fuel_level = msg->fuel_level;
     float fuel_range = msg->fuel_range;
     float odometry = msg->odometer;
+  }
+
+  void check_subs_() {
+    // checks subscribed topics are still arriving
+
+    if (steering_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/steering_report' msgs published ('%s')?", this->get_name());
+    }
+
+    if (gear_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gear_report' msgs published ('%s')?", this->get_name());
+    }
+
+    if (fuel_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/fuel_level' msgs published ('%s')?", this->get_name());
+    }
+
+    if (velocity_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/vehicle_velocity' msgs published ('%s')?", this->get_name());
+    }   
+
+    if (sys_report_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/system/report' msgs published ('%s')?", this->get_name());
+    } 
+
+    if (rem_report_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/remote/report' msgs published ('%s')?", this->get_name());
+    }
+
+    if (drive_mode_report_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/drive_mode/report' msgs published ('%s')?", this->get_name());
+    }
+
+    if (gps_sub_->get_publisher_count() == 0) {
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gps/fix' msgs published ('%s')?", this->get_name());
+    } 
+    
+  }
+
+  void gear_report_callback(const ds_dbw_msgs::msg::GearReport::SharedPtr msg) {
+  // reading messages from UGV about gear
+  }
+
+  void steering_report_callback(const ds_dbw_msgs::msg::SteeringReport::SharedPtr msg) {
+  // reading messages from UGV about steering
   }
 
   void velocity_callback(const ds_dbw_msgs::msg::VehicleVelocity::SharedPtr msg) {
@@ -171,7 +228,10 @@ private:
 
   int sock_;
   struct sockaddr_in remote_addr_{};
+  rclcpp::TimerBase::SharedPtr timer_;
 
+  rclcpp::Subscription<ds_dbw_msgs::msg::SteeringReport>::SharedPtr steering_sub_;
+  rclcpp::Subscription<ds_dbw_msgs::msg::GearReport>::SharedPtr gear_sub_;
   rclcpp::Subscription<ds_dbw_msgs::msg::FuelLevel>::SharedPtr fuel_sub_; // mavlink: SYS_STATUS?
   rclcpp::Subscription<ds_dbw_msgs::msg::VehicleVelocity>::SharedPtr velocity_sub_; // mavlink: VFR_HUD
   rclcpp::Subscription<ds_dbw_msgs::msg::SystemReport>::SharedPtr sys_report_sub_; // mavlink: SYS_STATUS? | HEARTBEAT

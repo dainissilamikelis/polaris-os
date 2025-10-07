@@ -2,4 +2,5 @@
   <node pkg="joy" exec="joy_node" name="joy_node" output="screen"/>
   <node pkg="mavros_joystic" exec="mavros_joystic" name="mavros_joystic" output="screen"/>
   <node pkg="mavros_commutator" exec="mavros_commutator" output="screen"/>
+  <node pkg="mavros_ugv_telemetry" exec="mavros_ugv_telemetry" output="screen"/>
 </launch>
