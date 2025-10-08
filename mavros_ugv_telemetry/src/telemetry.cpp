@@ -60,11 +60,10 @@ struct MessagesFrequency_struct{ // Frequencies of subscribded messages in Hz
 
 class MsgFrequency {
   public:
-    MsgFrequency(std::shared_ptr<rclcpp::Node> node) {
-    }
+    MsgFrequency() {}
 
-    void Tick() { // counts messages and calculates frequency
-      auto now = node_->get_clock()->now();
+    void Tick(std::shared_ptr<rclcpp::Node> node) { // counts messages and calculates frequency
+      auto now = node->get_clock()->now();
 
       if (msg_count_ > 0) {
         auto dt = now - last_msg_time_;
@@ -82,7 +81,6 @@ class MsgFrequency {
 
 
   private:
-    std::shared_ptr<rclcpp::Node> node_;
     size_t msg_count_ = 0;
     rclcpp::Time last_msg_time_;
     double hz_ = 0;
@@ -148,10 +146,20 @@ public:
     //   "/mavros/manual_control/send", 10
     // );
     ugv_state_ = std::make_shared<UVG_telemetry_struct>();
+    ugv_telemetry_freq_ = std::make_shared<MessagesFrequency_struct>();
 
     timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&UGVTelemetry::check_subs_, this));
 
     timer2_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&UGVTelemetry::send_data_to_gc, this));
+
+
+    gear_hz_ = std::make_shared<MsgFrequency>();
+    steering_hz_ = std::make_shared<MsgFrequency>();
+    fuel_level_hz_ = std::make_shared<MsgFrequency>();
+    system_hz_ = std::make_shared<MsgFrequency>();
+    gps_hz_ = std::make_shared<MsgFrequency>();
+    velocity_hz_ = std::make_shared<MsgFrequency>();
+    throttle_hz_ = std::make_shared<MsgFrequency>();
 
     RCLCPP_INFO(this->get_logger(), "MAVROS UGVTelemetry node started.");
 
@@ -169,7 +177,7 @@ private:
   void fuel_callback(const ds_dbw_msgs::msg::FuelLevel::SharedPtr msg) {
     // reading messages from UGV about the fuel level
 
-    fuel_level_hz_->Tick();
+    fuel_level_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->fuel_level = static_cast<uint16_t>(fuel_level_hz_->GetFreq() * 10.0);
 
     ugv_state_->fuel_level = static_cast<int16_t>(msg->fuel_level);
@@ -337,7 +345,7 @@ private:
   void throttle_report_callback(const ds_dbw_msgs::msg::ThrottleInfo::SharedPtr msg) {
     // reading throttle info messages from UGV
 
-    throttle_hz_->Tick();
+    throttle_hz_->Tick(this->shared_from_this());
     
     ugv_telemetry_freq_->throttle = static_cast<uint16_t>(throttle_hz_->GetFreq() * 10.0);
 
@@ -348,7 +356,7 @@ private:
 
   void gear_report_callback(const ds_dbw_msgs::msg::GearReport::SharedPtr msg) {
   // reading messages from UGV about gear
-    gear_hz_->Tick();
+    gear_hz_->Tick(this->shared_from_this());
 
     ugv_telemetry_freq_->gear = static_cast<uint16_t>(gear_hz_->GetFreq() * 10.0);
 
@@ -363,7 +371,7 @@ private:
   void steering_report_callback(const ds_dbw_msgs::msg::SteeringReport::SharedPtr msg) {
   // reading messages from UGV about steering
 
-    steering_hz_->Tick();
+    steering_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->steering = static_cast<uint16_t>(steering_hz_->GetFreq() * 10.0);
 
     ugv_state_->steer_steering_wheel_angle = static_cast<int16_t>(msg->steering_wheel_angle);
@@ -375,7 +383,7 @@ private:
   void velocity_callback(const ds_dbw_msgs::msg::VehicleVelocity::SharedPtr msg) {
     // reading messages about UGV current velocity
 
-    velocity_hz_->Tick();
+    velocity_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->velocity = static_cast<uint16_t>(velocity_hz_->GetFreq() * 10.0);
 
     ugv_state_->velocity_vehicle_velocity_propulsion = static_cast<int16_t>(msg->vehicle_velocity_propulsion);
@@ -386,7 +394,7 @@ private:
   void system_report_callback(const ds_dbw_msgs::msg::SystemReport::SharedPtr msg) {
     // reading messages about UGV internal system
 
-    system_hz_->Tick();
+    system_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->system = static_cast<uint16_t>(system_hz_->GetFreq() * 10.0);
     
     ugv_state_->system_state = static_cast<int16_t>(msg->state.value);
@@ -409,7 +417,7 @@ private:
   void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
     // reading messages about UGV GPS location
 
-    gps_hz_->Tick();
+    gps_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->gps = static_cast<uint16_t>(gps_hz_->GetFreq() * 10.0);
 
     ugv_state_->gps_latitude = static_cast<uint16_t>(msg->latitude);
@@ -435,13 +443,13 @@ private:
   rclcpp::Subscription<ds_dbw_msgs::msg::ThrottleInfo>::SharedPtr thottle_sub_;
   
   
-  std::shared_ptr<MsgFrequency> gear_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
-  std::shared_ptr<MsgFrequency> steering_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
-  std::shared_ptr<MsgFrequency> fuel_level_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
-  std::shared_ptr<MsgFrequency> system_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
-  std::shared_ptr<MsgFrequency> gps_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
-  std::shared_ptr<MsgFrequency> velocity_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
-  std::shared_ptr<MsgFrequency> throttle_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> gear_hz_;
+  std::shared_ptr<MsgFrequency> steering_hz_;
+  std::shared_ptr<MsgFrequency> fuel_level_hz_;
+  std::shared_ptr<MsgFrequency> system_hz_;
+  std::shared_ptr<MsgFrequency> gps_hz_;
+  std::shared_ptr<MsgFrequency> velocity_hz_;
+  std::shared_ptr<MsgFrequency> throttle_hz_;
 
 };
   
