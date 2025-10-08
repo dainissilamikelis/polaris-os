@@ -20,32 +20,73 @@
 #include <unistd.h>
 
 struct UVG_telemetry_struct{
-  uint16_t gear_curr; // mavlink Target = 1
-  uint16_t gear_cmd; // mavlink Target = 1
-  uint8_t gear_reject; // mavlink Target = 1
-  int16_t gear_ready; // mavlink Target = 1
-  int16_t gear_fault; // mavlink Target = 1
-  int16_t steer_steering_wheel_angle; // mavlink Target = 1
-  int16_t steer_enabled; // mavlink Target = 1
-  int16_t steer_ready; // mavlink Target = 1
-  int16_t steer_fault; // mavlink Target = 1
-  int16_t fuel_level; // mavlink Target = 1
-  int16_t fuel_range; // mavlink Target = 1
-  int16_t fuel_odometer; // mavlink Target = 1
-  int16_t system_state; // mavlink Target = 1
-  int16_t system_enabled; // mavlink Target = 1
-  int16_t system_fault; // mavlink Target = 1
-  int16_t system_inhibit; // mavlink Target = 2
-  int16_t system_reason_not_ready; // mavlink Target = 2
-  int16_t system_ready; // mavlink Target = 2
-  uint16_t gps_latitude; // mavlink Target = 2
-  uint16_t gps_longitude; // mavlink Target = 2
-  int16_t gps_altitude; // mavlink Target = 2
-  int16_t velocity_vehicle_velocity_propulsion; // mavlink Target = 2
-  int16_t velocity_vehicle_velocity_brake; // mavlink Target = 2
-  int16_t accel_pedal_pc; // mavlink Target = 2
-  int16_t accel_engine_rpm; // mavlink Target = 2
-  int16_t accel_engine_throttle_valve_pc; // mavlink Target = 2
+  uint16_t gear_curr = 0; // mavlink Target = 1
+  uint16_t gear_cmd = 0; // mavlink Target = 1
+  uint8_t gear_reject = 0; // mavlink Target = 1
+  int16_t gear_ready = 0; // mavlink Target = 1
+  int16_t gear_fault = 0; // mavlink Target = 1
+  int16_t steer_steering_wheel_angle = 0; // mavlink Target = 1
+  int16_t steer_enabled = 0; // mavlink Target = 1
+  int16_t steer_ready = 0 ; // mavlink Target = 1
+  int16_t steer_fault = 0; // mavlink Target = 1
+  int16_t fuel_level = 0; // mavlink Target = 1
+  int16_t fuel_range = 0; // mavlink Target = 1
+  int16_t fuel_odometer = 0; // mavlink Target = 1
+  int16_t system_state = 0; // mavlink Target = 1
+  int16_t system_enabled = 0; // mavlink Target = 1
+  int16_t system_fault = 0; // mavlink Target = 1
+  int16_t system_inhibit = 0; // mavlink Target = 2
+  int16_t system_reason_not_ready = 0; // mavlink Target = 2
+  int16_t system_ready = 0; // mavlink Target = 2
+  uint16_t gps_latitude = 0; // mavlink Target = 2
+  uint16_t gps_longitude = 0; // mavlink Target = 2
+  int16_t gps_altitude = 0; // mavlink Target = 2
+  int16_t velocity_vehicle_velocity_propulsion = 0; // mavlink Target = 2
+  int16_t velocity_vehicle_velocity_brake = 0; // mavlink Target = 2
+  int16_t accel_pedal_pc = 0; // mavlink Target = 2
+  int16_t accel_engine_rpm = 0; // mavlink Target = 2
+  int16_t accel_engine_throttle_valve_pc = 0; // mavlink Target = 2
+};
+
+struct MessagesFrequency_struct{ // Frequencies of subscribded messages in Hz
+  int16_t gear = 0;
+  int16_t steering = 0;
+  int16_t fuel_level = 0;
+  int16_t system = 0;
+  int16_t gps = 0;
+  int16_t velocity = 0;
+  int16_t throttle = 0;
+};
+
+class MsgFrequency {
+  public:
+    MsgFrequency(std::shared_ptr<rclcpp::Node> node) {
+    }
+
+    void Tick() { // counts messages and calculates frequency
+      auto now = node_->get_clock()->now();
+
+      if (msg_count_ > 0) {
+        auto dt = now - last_msg_time_;
+        hz_ = 1.0 / dt.seconds();
+        
+      }
+
+      last_msg_time_ = now;
+      msg_count_++;
+    }
+
+    double GetFreq() { // returns current frequency
+      return hz_;
+    }
+
+
+  private:
+    std::shared_ptr<rclcpp::Node> node_;
+    size_t msg_count_ = 0;
+    rclcpp::Time last_msg_time_;
+    double hz_ = 0;
+
 };
 
 class UGVTelemetry : public rclcpp::Node {
@@ -128,6 +169,9 @@ private:
   void fuel_callback(const ds_dbw_msgs::msg::FuelLevel::SharedPtr msg) {
     // reading messages from UGV about the fuel level
 
+    fuel_level_hz_->Tick();
+    ugv_telemetry_freq_->fuel_level = static_cast<uint16_t>(fuel_level_hz_->GetFreq() * 10.0);
+
     ugv_state_->fuel_level = static_cast<int16_t>(msg->fuel_level);
     ugv_state_->fuel_range = static_cast<int16_t>(msg->fuel_range);
     ugv_state_->fuel_odometer = static_cast<int16_t>(msg->odometer);
@@ -170,10 +214,10 @@ private:
     if (bytes_sent < 0) {
         RCLCPP_INFO(this->get_logger(), "UDP send failed: mavlink target=1, manual_control");
     } else {
-        //RCLCPP_INFO(this->get_logger(), "UDP send OK");
+        
     }
 
-    // Fill data for Target = 1
+    // Fill data for Target = 2
     mavlink_message_t mav_msg2;
 
     mavlink_msg_manual_control_pack(
@@ -206,7 +250,45 @@ private:
     if (bytes_sent2 < 0) {
         RCLCPP_INFO(this->get_logger(), "UDP send failed: mavlink target=2, manual_control");
     } else {
-        //RCLCPP_INFO(this->get_logger(), "UDP send OK");
+        
+    }
+
+    // Fill data for Target = 3
+    mavlink_message_t mav_msg3;
+
+    mavlink_msg_manual_control_pack(
+    123, // system_id, uint8_t
+    1, // component_id, uint8_t
+    &mav_msg3, // &mav_msg, mavlink_message_t*
+    3, // target, uint8_t
+    ugv_telemetry_freq_->gear, // x, int16_t
+    ugv_telemetry_freq_->steering, // y, int16_t
+    ugv_telemetry_freq_->fuel_level, // z, int16_t
+    ugv_telemetry_freq_->system, // r, int16_t
+    0, // buttons, uint16_t
+    0, // buttons2, uint16_t
+    0, // enabled_extensions, uint8_t
+    ugv_telemetry_freq_->gps, // s, int16_t
+    ugv_telemetry_freq_->velocity, // t, int16_t
+    ugv_telemetry_freq_->throttle, // aux1, int16_t
+    0, // aux2, int16_t
+    0, // aux3, int16_t
+    0, // aux4, int16_t
+    0, // aux5, int16_t
+    0 // aux6, int16_t
+    );
+
+    
+
+    uint8_t buffer3[360];
+    int len3 = mavlink_msg_to_send_buffer(buffer3, &mav_msg3);
+    //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
+
+    int bytes_sent3 = sendto(sock_, buffer3, len3, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
+    if (bytes_sent3 < 0) {
+        RCLCPP_INFO(this->get_logger(), "UDP send failed: mavlink target=3, manual_control");
+    } else {
+
     }
 
   }
@@ -253,6 +335,12 @@ private:
   }
 
   void throttle_report_callback(const ds_dbw_msgs::msg::ThrottleInfo::SharedPtr msg) {
+    // reading throttle info messages from UGV
+
+    throttle_hz_->Tick();
+    
+    ugv_telemetry_freq_->throttle = static_cast<uint16_t>(throttle_hz_->GetFreq() * 10.0);
+
     ugv_state_->accel_pedal_pc = static_cast<int16_t>(msg->accel_pedal_pc);
     ugv_state_->accel_engine_rpm = static_cast<int16_t>(msg->engine_rpm);
     ugv_state_->accel_engine_throttle_valve_pc = static_cast<int16_t>(msg->engine_throttle_valve_pc);
@@ -260,6 +348,10 @@ private:
 
   void gear_report_callback(const ds_dbw_msgs::msg::GearReport::SharedPtr msg) {
   // reading messages from UGV about gear
+    gear_hz_->Tick();
+
+    ugv_telemetry_freq_->gear = static_cast<uint16_t>(gear_hz_->GetFreq() * 10.0);
+
     ugv_state_->gear_curr = static_cast<uint16_t>(msg->gear.value);
     ugv_state_->gear_cmd = static_cast<uint16_t>(msg->cmd.value);
     ugv_state_->gear_reject = static_cast<uint8_t>(msg->reject.value);
@@ -270,6 +362,10 @@ private:
 
   void steering_report_callback(const ds_dbw_msgs::msg::SteeringReport::SharedPtr msg) {
   // reading messages from UGV about steering
+
+    steering_hz_->Tick();
+    ugv_telemetry_freq_->steering = static_cast<uint16_t>(steering_hz_->GetFreq() * 10.0);
+
     ugv_state_->steer_steering_wheel_angle = static_cast<int16_t>(msg->steering_wheel_angle);
     ugv_state_->steer_enabled = static_cast<int16_t>(msg->enabled);
     ugv_state_->steer_ready = static_cast<int16_t>(msg->ready);
@@ -278,15 +374,20 @@ private:
 
   void velocity_callback(const ds_dbw_msgs::msg::VehicleVelocity::SharedPtr msg) {
     // reading messages about UGV current velocity
+
+    velocity_hz_->Tick();
+    ugv_telemetry_freq_->velocity = static_cast<uint16_t>(velocity_hz_->GetFreq() * 10.0);
+
     ugv_state_->velocity_vehicle_velocity_propulsion = static_cast<int16_t>(msg->vehicle_velocity_propulsion);
     ugv_state_->velocity_vehicle_velocity_brake = static_cast<int16_t>(msg->vehicle_velocity_brake);
-
-    
   }
 
 
   void system_report_callback(const ds_dbw_msgs::msg::SystemReport::SharedPtr msg) {
     // reading messages about UGV internal system
+
+    system_hz_->Tick();
+    ugv_telemetry_freq_->system = static_cast<uint16_t>(system_hz_->GetFreq() * 10.0);
     
     ugv_state_->system_state = static_cast<int16_t>(msg->state.value);
     ugv_state_->system_enabled = static_cast<int16_t>(msg->enabled);
@@ -308,71 +409,20 @@ private:
   void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
     // reading messages about UGV GPS location
 
+    gps_hz_->Tick();
+    ugv_telemetry_freq_->gps = static_cast<uint16_t>(gps_hz_->GetFreq() * 10.0);
+
     ugv_state_->gps_latitude = static_cast<uint16_t>(msg->latitude);
     ugv_state_->gps_longitude = static_cast<uint16_t>(msg->longitude);
     ugv_state_->gps_altitude = static_cast<int16_t>(msg->altitude);
   }
-
-//   void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
-//     auto manual = mavros_msgs::msg::ManualControl();
-
-//     manual.x = static_cast<int16_t>(msg->axes[0] * 1000);  // Roll
-//     manual.y = static_cast<int16_t>(msg->axes[1] * 1000);  // Pitch
-//     manual.z = static_cast<int16_t>(msg->axes[2] * 1000);  // Throttle
-//     manual.r = static_cast<int16_t>(msg->axes[3] * 1000);  // Yaw
-
-//     uint16_t buttons = 0;
-//     for (size_t i = 0; i < msg->buttons.size(); ++i) {
-//       if (msg->buttons[i]) {
-//         buttons |= (1 << i);
-//       }
-//     }
-//     manual.buttons = buttons;
-//     //manual.target = 1;
-
-//     manual_pub_->publish(manual);
-
-//     mavlink_message_t mav_msg;
-
-//     mavlink_msg_manual_control_pack(
-//     123,
-//     123,
-//     &mav_msg,
-//     0,
-//     manual.x,
-//     manual.y,
-//     manual.z,
-//     manual.r,
-//     manual.buttons,
-//     0,
-//     0,
-//     0,
-//     0,
-//     0,
-//     0,
-//     0,
-//     0,
-//     0,
-//     0);
-
-//     uint8_t buffer[360];
-//     int len = mavlink_msg_to_send_buffer(buffer, &mav_msg);
-//     RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
-
-//     int bytes_sent = sendto(sock_, buffer, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
-//     if (bytes_sent < 0) {
-//         RCLCPP_INFO(this->get_logger(), "UDP send failed");
-//     } else {
-//         RCLCPP_INFO(this->get_logger(), "UDP send OK");
-//     }
-
-//   }
 
   int sock_;
   struct sockaddr_in remote_addr_{};
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::TimerBase::SharedPtr timer2_;
   std::shared_ptr<UVG_telemetry_struct> ugv_state_;
+  std::shared_ptr<MessagesFrequency_struct> ugv_telemetry_freq_;
 
   rclcpp::Subscription<ds_dbw_msgs::msg::SteeringReport>::SharedPtr steering_sub_;
   rclcpp::Subscription<ds_dbw_msgs::msg::GearReport>::SharedPtr gear_sub_;
@@ -384,7 +434,14 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_sub_;
   rclcpp::Subscription<ds_dbw_msgs::msg::ThrottleInfo>::SharedPtr thottle_sub_;
   
-  //rclcpp::Publisher<mavros_msgs::msg::ManualControl>::SharedPtr manual_pub_;
+  
+  std::shared_ptr<MsgFrequency> gear_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> steering_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> fuel_level_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> system_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> gps_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> velocity_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
+  std::shared_ptr<MsgFrequency> throttle_hz_ = std::make_shared<MsgFrequency>(shared_from_this());
 
 };
   
