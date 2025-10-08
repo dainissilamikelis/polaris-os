@@ -67,7 +67,7 @@ private:
     manual.buttons = buttons;
     //manual.target = 1;
 
-    manual_pub_->publish(manual); // ??
+    //manual_pub_->publish(manual); // ??
 
     mavlink_message_t mav_msg;
 
