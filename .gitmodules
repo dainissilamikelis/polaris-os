@@ -1,0 +1,12 @@
+[submodule "dbw_ros"]
+	path = dbw_ros
+	url = https://bitbucket.org/DataspeedInc/dbw_ros.git
+[submodule "mavlink"]
+	path = mavlink
+	url = https://github.com/ros2-gbp/mavlink-gbp-release.git
+[submodule "polaris-ground-control"]
+	path = polaris-ground-control
+	url = git@github.com:dainissilamikelis/polaris-ground-control.git
+[submodule "mavros"]
+	path = mavros
+	url = https://github.com/mavlink/mavros.git
