@@ -8,10 +8,10 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(mavros_msgs REQUIRED)
 find_package(mavlink REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(ds_dbw_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 include_directories(
   ${mavlink_INCLUDE_DIRS}
@@ -19,7 +19,7 @@ include_directories(
 )
 
 add_executable(mavros_ugv_telemetry src/telemetry.cpp)
-ament_target_dependencies(mavros_ugv_telemetry rclcpp sensor_msgs mavros_msgs ds_dbw_msgs)
+ament_target_dependencies(mavros_ugv_telemetry rclcpp sensor_msgs ds_dbw_msgs)
 
 install(TARGETS
   mavros_ugv_telemetry

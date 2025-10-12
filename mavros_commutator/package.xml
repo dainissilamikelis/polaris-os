@@ -4,15 +4,15 @@
   <name>mavros_commutator</name>
   <version>0.0.1</version>
   <description>Package is the central unit communicating between Polaris DBW, TAK, and GC</description>
-  <maintainer email="andrejs.zujevs@lmt">A.Zujevs</maintainer>
+  <maintainer email="andrejs.zujevs@lmt.lv">A.Zujevs</maintainer>
   <license>LMT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
-  <depend>mavros_msgs</depend>
   <depend>ds_dbw_msgs</depend>
+  <depend>sensor_msgs</depend>
   
 
   <test_depend>ament_lint_auto</test_depend>

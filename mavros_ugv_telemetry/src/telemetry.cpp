@@ -1,11 +1,6 @@
-//#define MAVLINK_USE_CONVENIENCE_FUNCTIONS
-//#define MAVLINK_SIGNING
 #include <mavlink/v2.0/common/mavlink.h>
-
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
-#include "mavros_msgs/msg/manual_control.hpp"
-#include "mavros_msgs/msg/mavlink.hpp"
 
 #include "ds_dbw_msgs/msg/gear_report.hpp"
 #include "ds_dbw_msgs/msg/steering_report.hpp"

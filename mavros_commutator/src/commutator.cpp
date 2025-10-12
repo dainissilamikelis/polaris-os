@@ -1,12 +1,8 @@
-// #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
-// #define MAVLINK_SIGNING
 #include <mavlink/v2.0/common/mavlink.h>
-
-
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
-#include "mavros_msgs/msg/manual_control.hpp"
-#include "mavros_msgs/msg/mavlink.hpp"
+// #include "mavros_msgs/msg/manual_control.hpp"
+// #include "mavros_msgs/msg/mavlink.hpp"
 
 #include "ds_dbw_msgs/msg/gear_report.hpp"
 
@@ -18,18 +14,6 @@
 #include <unistd.h>
 #include <bitset>
 #include <map>
-
-// const uint8_t secret_key[32] = {
-//     0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07, 0x18,
-//     0x29, 0x3A, 0x4B, 0x5C, 0x6D, 0x7E, 0x8F, 0x90,
-//     0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-//     0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00
-// };
-
-// uint64_t get_time_usec() {
-//     return std::chrono::duration_cast<std::chrono::microseconds>(
-//         std::chrono::system_clock::now().time_since_epoch()).count();
-// }
 
 struct GearState {
     uint8_t gear_current;
@@ -652,37 +636,14 @@ class JoyReader : public rclcpp::Node {
                 ssize_t len = recvfrom(sock_, buffer, sizeof(buffer) - 1, 0,
                                     (struct sockaddr*)&sender, &sender_len);
                 if (len <= 0) continue;
-
-                
-                // if (len > 0) {
-                //     buffer[len] = '\0';
-                //     RCLCPP_INFO(this->get_logger(), "Received: '%s' from %s:%d len=%d",
-                //                 buffer,
-                //                 inet_ntoa(sender.sin_addr),
-                //                 ntohs(sender.sin_port), len);
-                // }
-
-                /* check mavlink security key */    
+ 
                 mavlink_status_t status{};
                 mavlink_message_t msg;  // This is your received MAVLink message
-                // mavlink_signing_t signing{};
-                // memcpy(signing.secret_key, secret_key, 32);
-                // signing.link_id = 0;
-                // status.signing = &signing;
+
 
                 for (ssize_t i = 0; i < len; ++i) {
                     if (mavlink_parse_char(MAVLINK_COMM_0, buffer[i], &msg, &status)) {
-                        // Successfully parsed a MAVLink message
-                        //std::cout << "Received MAVLink message ID: " << msg.msgid << std::endl;
 
-                        // if (status.flags & MAVLINK_STATUS_FLAG_SIGNED) {
-                        //     std::cout << "Received signed message ID: " << msg.msgid << "\n";
-                        // } else {
-                        //     std::cout << "Received unsigned message (rejected)\n";
-                        //     continue;
-                        // }
-
-                        // Example: decode MANUAL_CONTROL message
                         if (msg.msgid == MAVLINK_MSG_ID_MANUAL_CONTROL) {
                             mavlink_manual_control_t ctrl;
                             mavlink_msg_manual_control_decode(&msg, &ctrl);
@@ -717,54 +678,6 @@ class JoyReader : public rclcpp::Node {
                             
 
                             filter_pending_gear(); // choose only single GEAR to activate
-
-                            // if ((*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->IsOncePressed()) {
-                            //     std::cout << "lowGear pressed!!" << std::endl;
-                            //     //(*oncePressButtons_)[JoyHoldButtons::LOW_GEAR]->Reset();
-                            //     //std::cout << "lowGear reset!!" << std::endl;
-                            // }
-                            
-                            // if ((*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->IsOncePressed()) {
-                            //     std::cout << "highGear pressed!!" << std::endl;
-                            //     //(*oncePressButtons_)[JoyHoldButtons::HIGH_GEAR]->Reset();
-                            //     //std::cout << "highGear reset!!" << std::endl;
-                            // }
-
-                            // if ((*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->IsOncePressed()) {
-                            //     std::cout << "neutralGear!!" << std::endl;
-                            //     //(*oncePressButtons_)[JoyHoldButtons::NEUTRAL_GEAR]->Reset();
-                            //     //std::cout << "neutralGear reset!!" << std::endl;
-                            // }
-
-                            // if ((*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->IsOncePressed()) {
-                            //     std::cout << "parkingGear!!" << std::endl;
-                            //     //(*oncePressButtons_)[JoyHoldButtons::PARKING_GEAR]->Reset();
-                            //     //std::cout << "parkingGear reset!!" << std::endl;
-                            // }
-
-                            // if ((*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->IsOncePressed()) {
-                            //     std::cout << "reverseGear!!" << std::endl;
-                            //     //(*oncePressButtons_)[JoyHoldButtons::REVERSE_GEAR]->Reset();
-                            //     //std::cout << "reverseGear reset!!" << std::endl;
-                            // }
-
-                            // if ((*oncePressButtons_)[JoyHoldButtons::WD_MODE]->IsOncePressed()) {
-                            //     std::cout << "wdMode!!" << std::endl;
-                            //     //(*oncePressButtons_)[JoyHoldButtons::WD_MODE]->Reset();
-                            //     //std::cout << "wdMode reset!!" << std::endl;
-                            // }
-                            
-                            // std::cout << "Mavlink struct:" << std::endl;
-                            // std::cout << "axis Steering:" << ctrl.x << std::endl;
-                            // std::cout << "axis Throttle:" << ctrl.y << std::endl;
-                            // std::cout << "axis Break:" << ctrl.z << std::endl;
-                            // std::cout << "axis Steering [ALT]:" << ctrl.r << std::endl;
-                            // std::cout << "axis TURN LEFT | TURN RIGHT | AXIS_STEER_MULT_2:" << ctrl.aux1 << std::endl;
-                            // std::cout << "axis AXIS_BRAKE_PRECHARGET | AXIS_STEER_MULT_1:" << ctrl.aux2 << std::endl;
-                            // std::cout << "axis RESERVED a[1]:" << ctrl.aux3 << std::endl;
-                            // std::cout << "axis RESERVED a[4]:" << ctrl.aux4 << std::endl;
-                            // std::bitset<16> binary(ctrl.buttons);
-                            // std::cout << "buttons: " << binary.to_string() << std::endl;
 
 
                             rclcpp::Time curr = now();
@@ -838,9 +751,6 @@ class JoyReader : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_publisher_;
 
-    //   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
-    //   rclcpp::Publisher<mavros_msgs::msg::ManualControl>::SharedPtr manual_pub_;
-
 };
   
 int main(int argc, char **argv) {
@@ -889,7 +799,6 @@ int main(int argc, char **argv) {
   executor.add_node(joyReader_node);
 
   executor.spin();
-  //rclcpp::spin(std::make_shared<JoyReader>());
   rclcpp::shutdown();
   return 0;
 }

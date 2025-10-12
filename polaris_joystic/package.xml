@@ -4,7 +4,7 @@
   <name>polaris_joystic</name>
   <version>0.0.1</version>
   <description>Package subscribes mavlink to joystic messages and commands Polaris to act</description>
-  <maintainer email="andrejs.zujevs@lmt">A.Zujevs</maintainer>
+  <maintainer email="andrejs.zujevs@lmt.lv">A.Zujevs</maintainer>
   <license>LMT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
