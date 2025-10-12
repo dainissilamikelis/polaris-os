@@ -1,3 +1,8 @@
+// #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
+// #define MAVLINK_SIGNING
+#include <mavlink/v2.0/common/mavlink.h>
+
+
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "mavros_msgs/msg/manual_control.hpp"
@@ -5,7 +10,6 @@
 
 #include "ds_dbw_msgs/msg/gear_report.hpp"
 
-#include <mavlink/v2.0/common/mavlink.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -14,6 +18,18 @@
 #include <unistd.h>
 #include <bitset>
 #include <map>
+
+// const uint8_t secret_key[32] = {
+//     0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07, 0x18,
+//     0x29, 0x3A, 0x4B, 0x5C, 0x6D, 0x7E, 0x8F, 0x90,
+//     0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+//     0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00
+// };
+
+// uint64_t get_time_usec() {
+//     return std::chrono::duration_cast<std::chrono::microseconds>(
+//         std::chrono::system_clock::now().time_since_epoch()).count();
+// }
 
 struct GearState {
     uint8_t gear_current;
@@ -299,11 +315,12 @@ class TAK_telemetry : public rclcpp::Node {
             remote_addr_.sin_family = AF_INET;
             remote_addr_.sin_port = htons(14552);  // Target port (e.g. QGroundControl or autopilot)
             remote_addr_.sin_addr.s_addr = inet_addr("172.25.116.22");  // Target IP
+            
 
-            if (bind(sock_, (const struct sockaddr*)&remote_addr_, sizeof(remote_addr_)) < 0) {
-                RCLCPP_INFO(this->get_logger(), "Socket bind failed.");
-                close(sock_);
-            }
+            // if (bind(sock_, (const struct sockaddr*)&remote_addr_, sizeof(remote_addr_)) < 0) {
+            //     RCLCPP_INFO(this->get_logger(), "Socket bind failed.");
+            //     close(sock_);
+            // }
 
             timer_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&TAK_telemetry::send_heartbit_msg, this));
 
@@ -625,7 +642,7 @@ class JoyReader : public rclcpp::Node {
 
  
         void receive_loop() {
-            char buffer[1024];
+            uint8_t buffer[2048];
             sockaddr_in sender{};
             socklen_t sender_len = sizeof(sender);
 
@@ -634,6 +651,9 @@ class JoyReader : public rclcpp::Node {
             while (rclcpp::ok()) {
                 ssize_t len = recvfrom(sock_, buffer, sizeof(buffer) - 1, 0,
                                     (struct sockaddr*)&sender, &sender_len);
+                if (len <= 0) continue;
+
+                
                 // if (len > 0) {
                 //     buffer[len] = '\0';
                 //     RCLCPP_INFO(this->get_logger(), "Received: '%s' from %s:%d len=%d",
@@ -642,12 +662,25 @@ class JoyReader : public rclcpp::Node {
                 //                 ntohs(sender.sin_port), len);
                 // }
 
-                mavlink_status_t status;
+                /* check mavlink security key */    
+                mavlink_status_t status{};
                 mavlink_message_t msg;  // This is your received MAVLink message
+                // mavlink_signing_t signing{};
+                // memcpy(signing.secret_key, secret_key, 32);
+                // signing.link_id = 0;
+                // status.signing = &signing;
+
                 for (ssize_t i = 0; i < len; ++i) {
                     if (mavlink_parse_char(MAVLINK_COMM_0, buffer[i], &msg, &status)) {
                         // Successfully parsed a MAVLink message
                         //std::cout << "Received MAVLink message ID: " << msg.msgid << std::endl;
+
+                        // if (status.flags & MAVLINK_STATUS_FLAG_SIGNED) {
+                        //     std::cout << "Received signed message ID: " << msg.msgid << "\n";
+                        // } else {
+                        //     std::cout << "Received unsigned message (rejected)\n";
+                        //     continue;
+                        // }
 
                         // Example: decode MANUAL_CONTROL message
                         if (msg.msgid == MAVLINK_MSG_ID_MANUAL_CONTROL) {

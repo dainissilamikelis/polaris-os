@@ -5,6 +5,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+add_compile_definitions(MAVLINK_SIGNING)
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -20,6 +22,9 @@ include_directories(
 
 add_executable(mavros_commutator src/commutator.cpp)
 ament_target_dependencies(mavros_commutator rclcpp sensor_msgs mavros_msgs ds_dbw_msgs)
+
+target_compile_definitions(mavros_commutator PRIVATE MAVLINK_SIGNING)
+
 
 install(TARGETS
   mavros_commutator
