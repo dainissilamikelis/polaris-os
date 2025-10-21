@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <bitset>
 #include <map>
+#include <fcntl.h>
 
 struct GearState {
     uint8_t gear_current;
@@ -539,6 +540,10 @@ class JoyReader : public rclcpp::Node {
             close(sock_);
         }
 
+        // unblock sock
+        int flags = fcntl(sock_, F_GETFL, 0);
+        fcntl(sock_, F_SETFL, flags | O_NONBLOCK);
+
         oncePressButtons_ = oncePressButtons;
         gear_state_ = gear_state;
         using namespace std::chrono_literals;
@@ -635,7 +640,7 @@ class JoyReader : public rclcpp::Node {
             while (rclcpp::ok()) {
                 ssize_t len = recvfrom(sock_, buffer, sizeof(buffer) - 1, 0,
                                     (struct sockaddr*)&sender, &sender_len);
-                if (len <= 0) continue;
+                if (len <= 0) break; //!!!!
  
                 mavlink_status_t status{};
                 mavlink_message_t msg;  // This is your received MAVLink message

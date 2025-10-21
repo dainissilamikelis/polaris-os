@@ -5,12 +5,26 @@ VIDEO SENDER TAK
 gst-launch-1.0 -v videotestsrc is-live=true ! 'video/x-raw,width=1280,height=720,framerate=30/1' ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! rtspclientsink location='rtsp://172.25.116.21:8554/krauklis1' protocols=tcp
 
 VIDEO SENDER GC
-gst-launch-1.0 videotestsrc is-live=true ! 'video/x-raw,width=1280,height=720,framerate=30/1' ! nvvidconv !  nvv4l2h264enc insert-sps-pps=true bitrate=300000 !  h264parse ! rtph264pay config-interval=-1 pt=96 ! queue !  udpsink clients=172.25.65.12:5000 max-bitrate=3000000 sync=false async=true
+gst-launch-1.0 videotestsrc is-live=true ! 'video/x-raw,width=1280,height=720,framerate=30/1' ! nvvidconv !  nvv4l2h264enc insert-sps-pps=true bitrate=300000 !  h264parse ! rtph264pay config-interval=-1 pt=96 ! queue !  udpsink clients=172.25.64.196:5000 max-bitrate=3000000 sync=false async=true
+
+gst-launch-1.0 -v videotestsrc pattern=pinwheel is-live=true do-timestamp=true horizontal-speed=8 ! nvvidconv ! 'video/x-raw(memory:NVMM), width=640, height=480, framerate=30/1' ! nvv4l2h264enc maxperf-enable=1 control-rate=1 bitrate=400000 insert-sps-pps=false ! h264parse ! rtph264pay config-interval=-1 pt=96 ! queue max-size-buffers=2 leaky=downstream ! udpsink clients=172.25.64.196:5000 buffer-size=1500000 sync=false async=false
+
+gst-launch-1.0 -v videotestsrc pattern=pinwheel is-live=true do-timestamp=true horizontal-speed=8 ! nvvidconv ! 'video/x-raw(memory:NVMM), width=640, height=480, framerate=30/1' ! nvv4l2h264enc maxperf-enable=1 control-rate=1 bitrate=100000 insert-sps-pps=false ! h264parse ! rtph264pay config-interval=-1 pt=96 ! queue max-size-buffers=2 leaky=downstream ! udpsink clients=172.25.64.196:5000 buffer-size=1500000 sync=false async=false
+
+gst-launch-1.0 -v zedsrc camera-resolution=4 camera-fps=60 od-enabled=true ! queue ! autovideoconvert ! nvvidconv ! nvv4l2h264enc maxperf
+-enable=1 control-rate=1 bitrate=1200000 insert-sps-pps=false ! h264parse ! rtph264pay config-interval=-1 pt=96 ! queue max-size-buffers=2 leaky=downstream ! udpsi
+nk clients=172.25.64.196:5000 buffer-size=1500000 sync=false async=false
 
 VIDEO receiver
 gst-launch-1.0 udpsrc port=5000 ! application/x-rtp,clock-rate=90000,payload=96 ! \
  queue ! rtph264depay ! h264parse ! avdec_h264 ! \
  queue ! autovideoconvert ! fpsdisplaysink
+
+ gst-launch-1.0 udpsrc port=5000 caps="application/x-rtp, clock-rate=90000, payload=96" ! \
+rtpjitterbuffer latency=50 drop-on-latency=true do-lost=true ! \
+queue ! rtph264depay ! h264parse ! avdec_h264 ! \
+queue ! autovideoconvert ! fpsdisplaysink
+
 
 AUDIO
 sender===
