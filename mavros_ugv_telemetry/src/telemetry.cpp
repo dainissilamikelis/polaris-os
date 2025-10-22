@@ -143,22 +143,22 @@ public:
     
     // subscribe Steering info
     steering_sub_ = this->create_subscription<ds_dbw_msgs::msg::SteeringReport>(
-      "/vehicle/steering_report", 1,
+      "/vehicle/steering/report", 1,
       std::bind(&UGVTelemetry::steering_report_callback, this, std::placeholders::_1));
 
     // subscribe Gear info
     gear_sub_ = this->create_subscription<ds_dbw_msgs::msg::GearReport>(
-      "/vehicle/gear_report", 1,
+      "/vehicle/gear/report", 1,
       std::bind(&UGVTelemetry::gear_report_callback, this, std::placeholders::_1));
 
     // subscribe Throttle info
     thottle_sub_ = this->create_subscription<ds_dbw_msgs::msg::ThrottleInfo>(
-      "/vehicle/throttle_info", 1,
+      "/vehicle/throttle/info", 1,
       std::bind(&UGVTelemetry::throttle_report_callback, this, std::placeholders::_1));
 
     // subscribe Brake info
     brake_sub_ = this->create_subscription<ds_dbw_msgs::msg::BrakeReport>(
-      "/vehicle/brake_report", 1,
+      "/vehicle/brake/report", 1,
       std::bind(&UGVTelemetry::brake_report_callback, this, std::placeholders::_1));
 
     // manual_pub_ = this->create_publisher<mavros_msgs::msg::ManualControl>(
@@ -360,11 +360,11 @@ private:
     // checks subscribed topics are still arriving
 
     if (steering_sub_->get_publisher_count() == 0) {
-      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/steering_report' msgs published ('%s')?", this->get_name());
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/steering/report' msgs published ('%s')?", this->get_name());
     }
 
     if (gear_sub_->get_publisher_count() == 0) {
-      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gear_report' msgs published ('%s')?", this->get_name());
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gear/report' msgs published ('%s')?", this->get_name());
     }
 
     if (fuel_sub_->get_publisher_count() == 0) {
@@ -392,11 +392,11 @@ private:
     }
 
     if (thottle_sub_->get_publisher_count() == 0) {
-      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/throttle_info' msgs published ('%s')?", this->get_name());
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/throttle/info' msgs published ('%s')?", this->get_name());
     }
 
     if (brake_sub_->get_publisher_count() == 0) {
-      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/brake_report' msgs published ('%s')?", this->get_name());
+      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/brake/report' msgs published ('%s')?", this->get_name());
     } 
     
   }

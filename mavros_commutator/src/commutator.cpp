@@ -137,7 +137,7 @@ class UvgGearMonitor: public rclcpp::Node {
             
             RCLCPP_INFO(this->get_logger(), "UvgGearMonitor '%s' node started.", this->get_name());
 
-            gear_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::GearReport>("/vehicle/gear_report", 1,
+            gear_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::GearReport>("/vehicle/gear/report", 1,
                                 std::bind(&UvgGearMonitor::gear_report_callback, this, std::placeholders::_1));
 
             oncePressButtons_ = oncePressButtons;
@@ -155,7 +155,7 @@ class UvgGearMonitor: public rclcpp::Node {
             // check last time actual data arrived from UGV
             if (gear_report_sub_->get_publisher_count() == 0) {
             //if ((this->now().seconds() - gear_state_->last_update_time_sec) >= 0.05) {
-                 RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gear_report' msgs published ('%s')?", this->get_name());
+                 RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gear/report' msgs published ('%s')?", this->get_name());
 
                  // reset pending gear
                  gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::NONE;

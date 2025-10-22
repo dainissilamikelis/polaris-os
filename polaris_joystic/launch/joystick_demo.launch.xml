@@ -65,12 +65,13 @@
     <param name="thrtl_dec" value="$(var thrtl_dec)"/>
   </node>
 
-  <!-- Joystick driver -->
+  <!-- Joystick driver 
   <arg name="device_id" default="0"/>
   <node pkg="joy" exec="joy_node" name="joy_node" output="screen" >
     <param name="device_id" value="$(var device_id)" />
     <param name="deadzone" value="0.0" />
     <param name="autorepeat_rate" value="50.0" />
   </node>
+  -->
 
 </launch>
