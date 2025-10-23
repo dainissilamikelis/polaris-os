@@ -54,7 +54,7 @@ float steerDefaultMax(uint8_t cmd_type) {
   switch (cmd_type) {
     case SteeringCmd::CMD_NONE:      return 0;
     case SteeringCmd::CMD_TORQUE:    return 8;     // Nm
-    case SteeringCmd::CMD_ANGLE:     return 500;   // deg
+    case SteeringCmd::CMD_ANGLE:     return 350;   // deg
     case SteeringCmd::CMD_CURVATURE: return 0.201; // 1/m
     case SteeringCmd::CMD_YAW_RATE:  return 5.01;  // rad/s
     case SteeringCmd::CMD_PERCENT:   return 100.1; // %
@@ -148,7 +148,7 @@ JoystickDemo::JoystickDemo(const rclcpp::NodeOptions &options) : rclcpp::Node("j
   data_.brake_joy = 0.0;
   data_.gear_cmd = Gear::NONE;
   data_.steering_joy = 0.0;
-  data_.steering_mult = false;
+  data_.steering_mult = true;
   data_.steering_cal = false;
   data_.throttle_joy = 0.0;
   data_.joy_throttle_valid = false;
@@ -247,11 +247,13 @@ void JoystickDemo::cmdCallback() {
         msg.cmd_accel = steer_accel_;
         float steering_joy = data_.steering_joy;
         if (!data_.steering_mult) {
-          steering_joy *= 0.5;
+          steering_joy *= 0.98;
         }
         if (steerLpfCmd(steer_cmd_type_)) {
-          constexpr float TAU = 0.1;
-          float filtered_steering_cmd = 0.02f / TAU * steering_joy + (1.0f - 0.02f / TAU) * last_steering_filt_output_;
+          //constexpr float TAU = 0.01;
+          constexpr float TAU = 0.05;
+          //float filtered_steering_cmd = 0.02f / TAU * steering_joy + (1.0f - 0.02f / TAU) * last_steering_filt_output_;
+          float filtered_steering_cmd = 0.01f / TAU * steering_joy + (1.0f - 0.01f / TAU) * last_steering_filt_output_;
           last_steering_filt_output_ = filtered_steering_cmd;
           msg.cmd = filtered_steering_cmd * steer_max_;
         } else {
