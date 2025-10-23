@@ -36,7 +36,7 @@
 
 #include <algorithm> // std::clamp()
 
-namespace ds_dbw_joystick_demo {
+namespace polaris_joystick {
 
 using namespace ds_dbw_msgs::msg;
 
@@ -143,7 +143,7 @@ JoystickDemo::JoystickDemo(const rclcpp::NodeOptions &options) : rclcpp::Node("j
 
   using std::placeholders::_1;
   sub_joy_ = create_subscription<sensor_msgs::msg::Joy>("/joy_polaris", 1, std::bind(&JoystickDemo::recvJoy, this, _1));
-  sub_veh_vel_ = create_subscription<VehicleVelocity>("vehicle_velocity", 1, std::bind(&JoystickDemo::recvVehVel, this, _1));
+  sub_veh_vel_ = create_subscription<VehicleVelocity>("/vehicle/vehicle_velocity", 1, std::bind(&JoystickDemo::recvVehVel, this, _1));
 
   data_.brake_joy = 0.0;
   data_.gear_cmd = Gear::NONE;
@@ -400,7 +400,7 @@ void JoystickDemo::recvJoy(const sensor_msgs::msg::Joy::ConstSharedPtr msg) {
     data_.gear_cmd = Gear::NEUTRAL;
   } else if (msg->buttons[BTN_LOW]) {
     data_.gear_cmd = Gear::LOW;
-  } else if (msg->buttons[BTN_WD]) // must be UPDATED !!!
+  } else if (msg->buttons[BTN_WD]) { // must be UPDATED !!!
     // RESERVED for the update
     data_.gear_cmd = Gear::LOW;
   }
@@ -501,7 +501,7 @@ void JoystickDemo::recvVehVel(const VehicleVelocity::ConstSharedPtr msg) {
   veh_vel_stamp_ = ros_clock_.now();
 }
 
-} // namespace ds_dbw_joystick_demo
+} // namespace polaris_joystick
 
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(ds_dbw_joystick_demo::JoystickDemo)
+RCLCPP_COMPONENTS_REGISTER_NODE(polaris_joystick::JoystickDemo)

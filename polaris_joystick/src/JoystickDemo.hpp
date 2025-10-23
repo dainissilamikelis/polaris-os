@@ -46,7 +46,7 @@
 #include <ds_dbw_msgs/msg/gear_report.hpp>
 #include <ds_dbw_msgs/msg/vehicle_velocity.hpp>
 
-namespace ds_dbw_joystick_demo {
+namespace polaris_joystick {
 
 class JoystickDemo : public rclcpp::Node {
 public:
@@ -195,7 +195,7 @@ private:
   bool joy_warned_ = false;
 
   enum { // buttons mapping table for the Joystic
-    BTN_LOW = 0 // remapped
+    BTN_LOW = 0, // remapped
     BTN_PARK = 2, // remapped
     BTN_REVERSE = 1, // remapped
     BTN_NEUTRAL = 5, // remapped
@@ -222,4 +222,4 @@ private:
   };
 };
 
-} // namespace ds_dbw_joystick_demo
+} // namespace polaris_joystick

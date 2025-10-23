@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>polaris_joystic</name>
+  <name>polaris_joystick</name>
   <version>0.0.1</version>
-  <description>Package subscribes mavlink to joystic messages and commands Polaris to act</description>
+  <description>Package subscribes mavlink to joystick messages and commands Polaris to act</description>
   <maintainer email="andrejs.zujevs@lmt.lv">A.Zujevs</maintainer>
   <license>LMT</license>
 

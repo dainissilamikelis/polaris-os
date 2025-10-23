@@ -41,7 +41,7 @@
   <arg name="brake_dec" default="0.0"/> <!-- Brake rate decrease limit (changes with cmd_type) -->
   <arg name="thrtl_inc" default="0.0"/> <!-- Throttle rate increase limit (changes with cmd_type) -->
   <arg name="thrtl_dec" default="0.0"/> <!-- Throttle rate decrease limit (changes with cmd_type) -->
-  <node namespace="vehicle" pkg="ds_dbw_joystick_demo" exec="joy_demo" output="screen" >
+  <node namespace="vehicle" pkg="polaris_joystick" exec="polaris_joy" output="screen" >
     <param name="enable" value="$(var enable)" />
     <param name="ignore" value="$(var ignore)" />
     <param name="steer" value="$(var steer)" />
@@ -64,14 +64,5 @@
     <param name="thrtl_inc" value="$(var thrtl_inc)"/>
     <param name="thrtl_dec" value="$(var thrtl_dec)"/>
   </node>
-
-  <!-- Joystick driver 
-  <arg name="device_id" default="0"/>
-  <node pkg="joy" exec="joy_node" name="joy_node" output="screen" >
-    <param name="device_id" value="$(var device_id)" />
-    <param name="deadzone" value="0.0" />
-    <param name="autorepeat_rate" value="50.0" />
-  </node>
-  -->
 
 </launch>
