@@ -38,6 +38,7 @@ struct UVG_telemetry_struct{
   int16_t system_inhibit = 0; // mavlink Target = 2
   int16_t system_reason_not_ready = 0; // mavlink Target = 2
   int16_t system_ready = 0; // mavlink Target = 2
+  int16_t system_override = 0; // mavlink Target 2
   uint16_t gps_latitude = 0; // mavlink Target = 2
   uint16_t gps_longitude = 0; // mavlink Target = 2
   int16_t gps_altitude = 0; // mavlink Target = 2
@@ -295,7 +296,7 @@ private:
     ugv_state_->accel_pedal_pc, // aux3, int16_t
     ugv_state_->accel_engine_rpm, // aux4, int16_t
     ugv_state_->accel_engine_throttle_valve_pc, // aux5, int16_t
-    0 // aux6, int16_t
+    ugv_state_->system_override // aux6, int16_t
     );
 
     uint8_t buffer2[360];
@@ -462,6 +463,7 @@ private:
     ugv_state_->system_inhibit = static_cast<int16_t>(msg->inhibit);
     ugv_state_->system_reason_not_ready = static_cast<int16_t>(msg->reason_not_ready);
     ugv_state_->system_ready = static_cast<int16_t>(msg->ready);
+    ugv_state_->system_override = static_cast<int16_t>(msg->override);
 
   }
 

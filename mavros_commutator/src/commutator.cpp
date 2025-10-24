@@ -5,6 +5,7 @@
 // #include "mavros_msgs/msg/mavlink.hpp"
 
 #include "ds_dbw_msgs/msg/gear_report.hpp"
+#include "ds_dbw_msgs/msg/system_report.hpp"
 
 
 #include <sys/socket.h>
@@ -161,43 +162,42 @@ class UvgGearMonitor: public rclcpp::Node {
                  gear_state_->gear_pending = ds_dbw_msgs::msg::Gear::NONE;
             }
 
-            if (gear_state_->gear_cmd == gear_state_->gear_pending) {
-                if (gear_state_->gear_reject == ds_dbw_msgs::msg::GearReject::NONE) {
-                    if (!gear_state_->gear_fault) {
-                        if (gear_state_->gear_current == gear_state_->gear_pending) {
+            if (gear_state_->gear_current == gear_state_->gear_pending) { // UVG is trying to switch the gear
+                if (gear_state_->gear_reject == ds_dbw_msgs::msg::GearReject::NONE) { // no problems with gear switching
+                    if (!gear_state_->gear_fault) { // no problems with gear switching
+                    //if (gear_state_->gear_current == gear_state_->gear_pending) { // if the gear is already active
+                        
+                        // determine the button 
+
+                        JoyHoldButtons key;
+                        switch (gear_state_->gear_current) {
+                            case ds_dbw_msgs::msg::Gear::PARK:
+                                key = JoyHoldButtons::PARKING_GEAR;
+                                break;
+
+                            case ds_dbw_msgs::msg::Gear::REVERSE:
+                                key = JoyHoldButtons::REVERSE_GEAR;
+                                break;
+
+                            case ds_dbw_msgs::msg::Gear::NEUTRAL:
+                                key = JoyHoldButtons::NEUTRAL_GEAR;
+                                break;
                             
-                            // determine the button 
+                            case ds_dbw_msgs::msg::Gear::DRIVE:
+                                key = JoyHoldButtons::HIGH_GEAR;
+                                break;
 
-                            JoyHoldButtons key;
-                            switch (gear_state_->gear_current) {
-                                case ds_dbw_msgs::msg::Gear::PARK:
-                                    key = JoyHoldButtons::PARKING_GEAR;
-                                    break;
-
-                                case ds_dbw_msgs::msg::Gear::REVERSE:
-                                    key = JoyHoldButtons::REVERSE_GEAR;
-                                    break;
-
-                                case ds_dbw_msgs::msg::Gear::NEUTRAL:
-                                    key = JoyHoldButtons::NEUTRAL_GEAR;
-                                    break;
-                                
-                                case ds_dbw_msgs::msg::Gear::DRIVE:
-                                    key = JoyHoldButtons::HIGH_GEAR;
-                                    break;
-
-                                case ds_dbw_msgs::msg::Gear::LOW:
-                                    key = JoyHoldButtons::LOW_GEAR;
-                                    break;  
-                                
-                                default:
-                                    key = JoyHoldButtons::NONE;
-                            }
-                            // reset the button!
-                            if (key != JoyHoldButtons::NONE) {
-                                if ((*oncePressButtons_)[key]->IsOncePressed()) {
-                                    (*oncePressButtons_)[key]->Reset();
-                                }
+                            case ds_dbw_msgs::msg::Gear::LOW:
+                                key = JoyHoldButtons::LOW_GEAR;
+                                break;  
+                            
+                            default:
+                                key = JoyHoldButtons::NONE;
+                        }
+                        // reset the button!
+                        if (key != JoyHoldButtons::NONE) {
+                            if ((*oncePressButtons_)[key]->IsOncePressed()) {
+                                (*oncePressButtons_)[key]->Reset();
                             }
                         }
                     }
@@ -546,6 +546,11 @@ class JoyReader : public rclcpp::Node {
 
         oncePressButtons_ = oncePressButtons;
         gear_state_ = gear_state;
+
+        // checking override command from the UGV
+        system_report_sub_ = this->create_subscription<ds_dbw_msgs::msg::SystemReport>("/vehicle/system/report", 10,
+                std::bind(&JoyReader::system_report_callback, this, std::placeholders::_1));
+
         using namespace std::chrono_literals;
         prev_time_ = now();
         
@@ -564,8 +569,19 @@ class JoyReader : public rclcpp::Node {
 
     private:
 
+        void system_report_callback(const ds_dbw_msgs::msg::SystemReport::SharedPtr msg) {
+            // checks the override state
+            if (msg->override) {
+                for (const auto& [key, valuePtr] : *oncePressButtons_) {
+                    if (key == JoyHoldButtons::ENABLE) {
+                        (*oncePressButtons_)[key]->Reset(); // reset enable buttnon
+                    }
+                }
+            }
+        }
+
         void filter_pending_gear () {
-            // filters only a single pending gear if multiple buttons are active
+            // filters only a single pending gear if multiple buttons are active or the gear is in place
 
             /* find the latest (by time) holding button */
             auto latest = (*oncePressButtons_).begin()->first;
@@ -579,7 +595,6 @@ class JoyReader : public rclcpp::Node {
             }
             if (!present) return; // there are not any GEAR button active, return
 
-            
 
             for (const auto& [key, valuePtr] : *oncePressButtons_) {
                 if (key == JoyHoldButtons::WD_MODE || key == JoyHoldButtons::ENABLE) continue; // ignore not GEAR buttons
@@ -755,6 +770,7 @@ class JoyReader : public rclcpp::Node {
     std::shared_ptr<GearState> gear_state_; // shared gear's state struct
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_publisher_;
+    rclcpp::Subscription<ds_dbw_msgs::msg::SystemReport>::SharedPtr system_report_sub_; 
 
 };
   
