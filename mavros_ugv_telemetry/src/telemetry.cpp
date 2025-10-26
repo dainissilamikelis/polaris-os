@@ -170,7 +170,7 @@ public:
 
     timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&UGVTelemetry::check_subs_, this));
 
-    timer2_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&UGVTelemetry::send_data_to_gc, this));
+    timer2_ = this->create_wall_timer(std::chrono::milliseconds(800), std::bind(&UGVTelemetry::send_data_to_gc, this));
 
     timer3_ = this->create_wall_timer(std::chrono::milliseconds(110), std::bind(&UGVTelemetry::refresh_data, this));
 
@@ -193,14 +193,15 @@ public:
 
     remote_addr_.sin_family = AF_INET;
     remote_addr_.sin_port = htons(14551);  // Target port (e.g. QGroundControl or autopilot)
-    remote_addr_.sin_addr.s_addr = inet_addr("172.25.64.196");  // Target IP / local IP = 172.25.65.12, Remote IP = 172.25.64.197
+    remote_addr_.sin_addr.s_addr = inet_addr("172.25.64.194");  // Target IP / local IP = 172.25.65.12, Remote IP = 172.25.64.194
   }
 
 private:
 
   void refresh_data() {
     // checks freq timeout and resets values
-
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    
     fuel_level_hz_->GetFreq(this->shared_from_this());
     throttle_hz_->GetFreq(this->shared_from_this());
     gear_hz_->GetFreq(this->shared_from_this());
@@ -214,6 +215,7 @@ private:
 
   void brake_report_callback(const ds_dbw_msgs::msg::BrakeReport::SharedPtr msg) {
     // reading messages from UGV about the brakes
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     brake_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->brake = static_cast<uint16_t>(brake_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -225,6 +227,7 @@ private:
 
   void fuel_callback(const ds_dbw_msgs::msg::FuelLevel::SharedPtr msg) {
     // reading messages from UGV about the fuel level
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     fuel_level_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->fuel_level = static_cast<uint16_t>(fuel_level_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -236,7 +239,10 @@ private:
 
   void send_data_to_gc() {
     // sends telemetry data to the GroundControl using mavlink messages
-
+    if (data_mutex_.try_lock()) {
+    } else {
+            return;
+    }
 
     // Fill data for Target = 1
     mavlink_message_t mav_msg;
@@ -262,6 +268,8 @@ private:
     ugv_state_->system_enabled, // aux5, int16_t
     ugv_state_->system_fault // aux6, int16_t
     );
+
+    //RCLCPP_INFO(this->get_logger(), "curr_gear %d", ugv_state_->gear_curr);
 
     uint8_t buffer[360];
     int len = mavlink_msg_to_send_buffer(buffer, &mav_msg);
@@ -354,6 +362,7 @@ private:
     } else {
 
     }
+    data_mutex_.unlock();
 
   }
 
@@ -404,6 +413,7 @@ private:
 
   void throttle_report_callback(const ds_dbw_msgs::msg::ThrottleInfo::SharedPtr msg) {
     // reading throttle info messages from UGV
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     throttle_hz_->Tick(this->shared_from_this());
     
@@ -416,6 +426,8 @@ private:
 
   void gear_report_callback(const ds_dbw_msgs::msg::GearReport::SharedPtr msg) {
   // reading messages from UGV about gear
+    std::lock_guard<std::mutex> lock(data_mutex_);
+
     gear_hz_->Tick(this->shared_from_this());
 
     ugv_telemetry_freq_->gear = static_cast<uint16_t>(gear_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -430,6 +442,7 @@ private:
 
   void steering_report_callback(const ds_dbw_msgs::msg::SteeringReport::SharedPtr msg) {
   // reading messages from UGV about steering
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     steering_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->steering = static_cast<uint16_t>(steering_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -442,6 +455,7 @@ private:
 
   void velocity_callback(const ds_dbw_msgs::msg::VehicleVelocity::SharedPtr msg) {
     // reading messages about UGV current velocity
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     velocity_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->velocity = static_cast<uint16_t>(velocity_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -453,6 +467,7 @@ private:
 
   void system_report_callback(const ds_dbw_msgs::msg::SystemReport::SharedPtr msg) {
     // reading messages about UGV internal system
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     system_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->system = static_cast<uint16_t>(system_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -477,6 +492,7 @@ private:
 
   void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
     // reading messages about UGV GPS location
+    std::lock_guard<std::mutex> lock(data_mutex_);
 
     gps_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->gps = static_cast<uint16_t>(gps_hz_->GetFreq(this->shared_from_this()) * 10.0);
@@ -488,6 +504,8 @@ private:
 
   int sock_;
   struct sockaddr_in remote_addr_{};
+  std::mutex data_mutex_;
+
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::TimerBase::SharedPtr timer2_;
   rclcpp::TimerBase::SharedPtr timer3_;

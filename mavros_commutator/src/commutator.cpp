@@ -353,13 +353,13 @@ class TAK_telemetry : public rclcpp::Node {
             );
 
             int len = mavlink_msg_to_send_buffer(buf, &msg);
-            RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
+            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
 
             int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
             if (bytes_sent < 0) {
                 RCLCPP_INFO(this->get_logger(), "heartbit UDP send failed");
             } else {
-                RCLCPP_INFO(this->get_logger(), "heartbit UDP send OK");
+                //RCLCPP_INFO(this->get_logger(), "heartbit UDP send OK");
             }
         }
 
@@ -382,13 +382,13 @@ class TAK_telemetry : public rclcpp::Node {
             );
 
             int len = mavlink_msg_to_send_buffer(buf, &msg);
-            RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
+            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
 
             int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
             if (bytes_sent < 0) {
                 RCLCPP_INFO(this->get_logger(), "statustext UDP send failed");
             } else {
-                RCLCPP_INFO(this->get_logger(), "statustext UDP send OK");
+                //RCLCPP_INFO(this->get_logger(), "statustext UDP send OK");
             }
 
         }
@@ -442,13 +442,13 @@ class TAK_telemetry : public rclcpp::Node {
             );
 
             int len = mavlink_msg_to_send_buffer(buf, &msg);
-            RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
+            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
 
             int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
             if (bytes_sent < 0) {
                 RCLCPP_INFO(this->get_logger(), "sys_status UDP send failed");
             } else {
-                RCLCPP_INFO(this->get_logger(), "sys_status UDP send OK");
+                //RCLCPP_INFO(this->get_logger(), "sys_status UDP send OK");
             }
 
         }
@@ -475,13 +475,13 @@ class TAK_telemetry : public rclcpp::Node {
             );
 
             int len = mavlink_msg_to_send_buffer(buf, &msg);
-            RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
+            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
 
             int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
             if (bytes_sent < 0) {
                 RCLCPP_INFO(this->get_logger(), "GLOBAL_POSITION_INT UDP send failed");
             } else {
-                RCLCPP_INFO(this->get_logger(), "GLOBAL_POSITION_INT UDP send OK");
+                //RCLCPP_INFO(this->get_logger(), "GLOBAL_POSITION_INT UDP send OK");
             }
 
         }
@@ -505,13 +505,13 @@ class TAK_telemetry : public rclcpp::Node {
             );
 
             int len = mavlink_msg_to_send_buffer(buf, &msg);
-            RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
+            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
 
             int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
             if (bytes_sent < 0) {
                 RCLCPP_INFO(this->get_logger(), "VFR_HUD UDP send failed");
             } else {
-                RCLCPP_INFO(this->get_logger(), "VFR_HUD UDP send OK");
+                //RCLCPP_INFO(this->get_logger(), "VFR_HUD UDP send OK");
             }
 
         }
