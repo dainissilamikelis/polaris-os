@@ -168,11 +168,11 @@ public:
     ugv_state_ = std::make_shared<UVG_telemetry_struct>();
     ugv_telemetry_freq_ = std::make_shared<MessagesFrequency_struct>();
 
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&UGVTelemetry::check_subs_, this));
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(800), std::bind(&UGVTelemetry::check_subs_, this));
 
-    timer2_ = this->create_wall_timer(std::chrono::milliseconds(800), std::bind(&UGVTelemetry::send_data_to_gc, this));
+    timer2_ = this->create_wall_timer(std::chrono::milliseconds(200), std::bind(&UGVTelemetry::send_data_to_gc, this));
 
-    timer3_ = this->create_wall_timer(std::chrono::milliseconds(110), std::bind(&UGVTelemetry::refresh_data, this));
+    timer3_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&UGVTelemetry::refresh_data, this));
 
 
     gear_hz_ = std::make_shared<MsgFrequency>("gearHz");
@@ -221,7 +221,7 @@ private:
     ugv_telemetry_freq_->brake = static_cast<uint16_t>(brake_hz_->GetFreq(this->shared_from_this()) * 10.0);
 
     ugv_state_->brake_enabled = static_cast<uint8_t>(msg->enabled);
-    ugv_state_->brake_torque_pedal = static_cast<int16_t>(msg->torque_input);
+    ugv_state_->brake_torque_pedal = static_cast<int16_t>(msg->percent_output);
     ugv_state_->brake_fault = static_cast<int16_t>(msg->fault);
   }
 

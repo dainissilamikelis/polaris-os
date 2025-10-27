@@ -533,6 +533,8 @@ class JoyReader : public rclcpp::Node {
 
         server_addr_.sin_family = AF_INET;
         server_addr_.sin_port = htons(14550);  // Target port (e.g. QGroundControl or autopilot)
+        //inet_pton(AF_INET, "172.25.64.194", &server_addr_.sin_addr);
+
         server_addr_.sin_addr.s_addr = INADDR_ANY;  // Target IP
 
         if (bind(sock_, (const struct sockaddr*)&server_addr_, sizeof(server_addr_)) < 0) {
@@ -646,6 +648,7 @@ class JoyReader : public rclcpp::Node {
 
  
         void receive_loop() {
+            // RCLCPP_INFO(this->get_logger(), "receive_loop");
             uint8_t buffer[2048];
             sockaddr_in sender{};
             socklen_t sender_len = sizeof(sender);
@@ -655,7 +658,12 @@ class JoyReader : public rclcpp::Node {
             while (rclcpp::ok()) {
                 ssize_t len = recvfrom(sock_, buffer, sizeof(buffer) - 1, 0,
                                     (struct sockaddr*)&sender, &sender_len);
-                if (len <= 0) break; //!!!!
+                if (len <= 0) {
+                    //RCLCPP_INFO(this->get_logger(), "break");
+                    break; //!!!!
+                } else {
+                    //RCLCPP_INFO(this->get_logger(), "Recieved: %d", len);
+                }
  
                 mavlink_status_t status{};
                 mavlink_message_t msg;  // This is your received MAVLink message
@@ -667,6 +675,11 @@ class JoyReader : public rclcpp::Node {
                         if (msg.msgid == MAVLINK_MSG_ID_MANUAL_CONTROL) {
                             mavlink_manual_control_t ctrl;
                             mavlink_msg_manual_control_decode(&msg, &ctrl);
+                            if (ctrl.target != 8) {
+                                //RCLCPP_INFO(this->get_logger(), "Ignoring %d", ctrl.target);
+                                continue;
+                            }
+                            //RCLCPP_INFO(this->get_logger(), "After continue");
                             using namespace std::chrono_literals;
 
                             bool lowGear = buttonProcessor.isPressed(JoyHoldButtons::LOW_GEAR, ctrl.buttons);
