@@ -1,6 +1,7 @@
 [Unit]
 Description=Polaris UGV service
-After=network.target
+After=network.target zed_x_daemon.service
+Wants=network-online.target
 
 [Service]
 ExecStart=/home/user/pol_ws/src/polaris-os/scripts/run.sh

@@ -26,12 +26,14 @@ PID3=$!
 
 (
     echo "Starting ZED X (stereo camera) streamer on port 5002..."
+    sleep 30
     ./build/ZED_Streaming_Sender/ZED_Streaming_Sender 5002
 ) &
 PID4=$!
 
 (
     echo "Starting ZED One (mono camera) streamer on port 5004..."
+    sleep 30
     ./build/ZED_One_live/ZED_One_streaming_sender 5004
 
 ) &
