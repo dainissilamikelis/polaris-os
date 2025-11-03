@@ -39,9 +39,10 @@ struct UVG_telemetry_struct{
   int16_t system_reason_not_ready = 0; // mavlink Target = 2
   int16_t system_ready = 0; // mavlink Target = 2
   int16_t system_override = 0; // mavlink Target 2
-  uint16_t gps_latitude = 0; // mavlink Target = 2
-  uint16_t gps_longitude = 0; // mavlink Target = 2
-  int16_t gps_altitude = 0; // mavlink Target = 2
+  double gps_latitude = 0; // mavlink gps
+  double gps_longitude = 0; // mavlink gps
+  int16_t gps_altitude = 0; // mavlink gps
+  int16_t gps_head = 0; // mavlink gps
   int16_t velocity_vehicle_velocity_propulsion = 0; // mavlink Target = 2
   int16_t velocity_vehicle_velocity_brake = 0; // mavlink Target = 2
   int16_t accel_pedal_pc = 0; // mavlink Target = 2
@@ -102,6 +103,8 @@ class MsgFrequency {
 
 };
 
+
+
 class UGVTelemetry : public rclcpp::Node {
 public:
   UGVTelemetry() : Node("ugv_telemetry") {
@@ -138,7 +141,7 @@ public:
 
     // subscribe GPS info
     gps_sub_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
-      "/vehicle/gps/fix", 1,
+      "/ugv/gps/fix", 1,
       std::bind(&UGVTelemetry::gps_callback, this, std::placeholders::_1)
     );
     
@@ -174,6 +177,8 @@ public:
 
     timer3_ = this->create_wall_timer(std::chrono::milliseconds(500), std::bind(&UGVTelemetry::refresh_data, this));
 
+    timer4_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&UGVTelemetry::send_data_to_tak, this));
+
 
     gear_hz_ = std::make_shared<MsgFrequency>("gearHz");
     steering_hz_ = std::make_shared<MsgFrequency>("steerHz");
@@ -191,9 +196,24 @@ public:
         RCLCPP_INFO(this->get_logger(), "Socket creation failed.");
     }
 
+    tak_sock_ = socket(AF_INET, SOCK_DGRAM, 0);
+    if (tak_sock_ < 0) {
+        RCLCPP_INFO(this->get_logger(), "TAK socket creation failed.");
+    }
+
+    this->declare_parameter<std::string>("gc_ip", "172.25.64.194");
+    std::string gc_ip = this->get_parameter("gc_ip").as_string();
+
+    this->declare_parameter<std::string>("tak_ip", "172.25.116.22");
+    std::string tak_ip = this->get_parameter("tak_ip").as_string();
+
     remote_addr_.sin_family = AF_INET;
     remote_addr_.sin_port = htons(14551);  // Target port (e.g. QGroundControl or autopilot)
-    remote_addr_.sin_addr.s_addr = inet_addr("172.25.64.194");  // Target IP / local IP = 172.25.65.12, Remote IP = 172.25.64.194
+    remote_addr_.sin_addr.s_addr = inet_addr(gc_ip.c_str());  // Target IP / local IP = 172.25.65.12, Remote IP = 172.25.64.194
+
+    tak_remote_addr_.sin_family = AF_INET;
+    tak_remote_addr_.sin_port = htons(14552);  // Target port (e.g. QGroundControl or autopilot)
+    tak_remote_addr_.sin_addr.s_addr = inet_addr(tak_ip.c_str());  // Target IP
   }
 
 private:
@@ -235,6 +255,160 @@ private:
     ugv_state_->fuel_level = static_cast<int16_t>(msg->fuel_level);
     ugv_state_->fuel_range = static_cast<int16_t>(msg->fuel_range);
     ugv_state_->fuel_odometer = static_cast<int16_t>(msg->odometer);
+  }
+
+  void send_data_to_tak() {
+    // send data to TAK
+
+    if (data_mutex_.try_lock()) {
+    } else {
+            return;
+    }
+
+    /* send_heartbit_msg() */
+    mavlink_message_t msg;
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    int len;
+    int bytes_sent;
+
+    mavlink_msg_heartbeat_pack(
+    1,     // system ID
+    1,   // component ID
+    &msg,
+    MAV_TYPE_GROUND_ROVER,
+    MAV_AUTOPILOT_GENERIC,
+    MAV_MODE_MANUAL_DISARMED,
+    0,     // custom mode
+    MAV_STATE_ACTIVE
+    );
+
+    len = mavlink_msg_to_send_buffer(buf, &msg);
+    bytes_sent = sendto(tak_sock_, buf, len, 0, (struct sockaddr*)&tak_remote_addr_, sizeof(tak_remote_addr_));
+    if (bytes_sent < 0) {
+        RCLCPP_INFO(this->get_logger(), "TAK: heartbit UDP send failed");
+    } else {
+    }
+
+    /* send_statustext_msg() */
+    const char* status = "UGV is ready";
+
+    mavlink_msg_statustext_pack(
+    1,     // system ID
+    1,   // component ID
+    &msg,
+    MAV_SEVERITY_INFO,
+    status,
+    0, // Unique ID for message grouping (extension)
+    0 // Sequence number for chunked messages (extension)
+    );
+
+    len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    bytes_sent = sendto(tak_sock_, buf, len, 0, (struct sockaddr*)&tak_remote_addr_, sizeof(tak_remote_addr_));
+    if (bytes_sent < 0) {
+        RCLCPP_INFO(this->get_logger(), "TAK: statustext UDP send failed");
+    } else {
+    }
+
+    /* send_sys_status_msg */
+    uint32_t sensors_present = MAV_SYS_STATUS_SENSOR_3D_GYRO |
+                               MAV_SYS_STATUS_SENSOR_3D_ACCEL |
+                               MAV_SYS_STATUS_SENSOR_GPS;
+    uint32_t sensors_enabled = sensors_present;
+    uint32_t sensors_health  = sensors_present;
+    uint16_t load = 0;               // 0% CPU load
+    uint16_t voltage_battery = 0;  // 0.0 V, used as FUEL
+    int16_t current_battery = ugv_state_->fuel_range;     // 0.0 A, used as FUEL
+    int8_t battery_remaining = ugv_state_->fuel_level;     // 100% FUEL level of the UGV
+    uint16_t drop_rate_comm = 0;      // 0% drop rate
+    uint16_t errors_comm = 0;
+    uint16_t errors_count1 = 0;
+    uint16_t errors_count2 = 0;
+    uint16_t errors_count3 = 0;
+    uint16_t errors_count4 = 0;
+    uint32_t battery_current_consumed = 0;  // NEW
+    uint32_t battery_energy_consumed = 0;   // NEW
+    uint32_t communication_errors = 0;       // NEW
+
+    mavlink_msg_sys_status_pack(
+        1,  // system ID
+        1,  // component ID
+        &msg,
+        sensors_present,
+        sensors_enabled,
+        sensors_health,
+        load,
+        voltage_battery,
+        current_battery,
+        battery_remaining,
+        drop_rate_comm,
+        errors_comm,
+        errors_count1,
+        errors_count2,
+        errors_count3,
+        errors_count4,
+        battery_current_consumed,
+        battery_energy_consumed,
+        communication_errors
+    );
+
+    len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    bytes_sent = sendto(tak_sock_, buf, len, 0, (struct sockaddr*)&tak_remote_addr_, sizeof(tak_remote_addr_));
+    if (bytes_sent < 0) {
+        RCLCPP_INFO(this->get_logger(), "TAK: sys_status UDP send failed");
+    } else {
+    }
+
+    /* send_global_position_int_msg */
+    mavlink_msg_global_position_int_pack(
+    1,     // system ID
+    1,   // component ID
+    &msg,
+    123456,        // time_boot_ms
+    static_cast<int32_t>(ugv_state_->gps_latitude * 1.0e7),     // lat (56.952117°) 56.952135, 24.078829
+    static_cast<int32_t>(ugv_state_->gps_longitude * 1.0e7),     // lon (24.079051°)
+    static_cast<int32_t>(ugv_state_->gps_altitude),         // alt (12.0 m AMSL)
+    static_cast<int32_t>(ugv_state_->gps_altitude),           // relative_alt (0.5 m above ground)
+    0,           // vx (1.0 m/s North)
+    0,             // vy (0 m/s East)
+    0,           // vz (-0.5 m/s Down)
+    static_cast<uint16_t>(ugv_state_->gps_head * 100.0)           // hdg (90.00° East)
+    );
+
+    len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    bytes_sent = sendto(tak_sock_, buf, len, 0, (struct sockaddr*)&tak_remote_addr_, sizeof(tak_remote_addr_));
+    if (bytes_sent < 0) {
+        RCLCPP_INFO(this->get_logger(), "TAK: GLOBAL_POSITION_INT UDP send failed");
+    } else {
+
+    }
+
+    /* send_vfr_hud_msg */
+    mavlink_msg_vfr_hud_pack(
+        1,    // system ID
+        1,  // component ID
+        &msg,
+        ugv_state_->velocity_vehicle_velocity_propulsion,     // airspeed (m/s)
+        ugv_state_->velocity_vehicle_velocity_brake,     // groundspeed (m/s)
+        90,       // heading (degrees)
+        ugv_state_->accel_engine_throttle_valve_pc,       // throttle (%)
+        ugv_state_->gps_altitude,    // altitude (meters)
+        0       // climb rate (m/s)
+    );
+
+    len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    bytes_sent = sendto(tak_sock_, buf, len, 0, (struct sockaddr*)&tak_remote_addr_, sizeof(tak_remote_addr_));
+    if (bytes_sent < 0) {
+        RCLCPP_INFO(this->get_logger(), "TAK: VFR_HUD UDP send failed");
+    } else {
+
+    }
+
+    data_mutex_.unlock();
+
   }
 
   void send_data_to_gc() {
@@ -285,6 +459,8 @@ private:
     // Fill data for Target = 2
     mavlink_message_t mav_msg2;
 
+    
+
     mavlink_msg_manual_control_pack(
     123, // system_id, uint8_t
     1, // component_id, uint8_t
@@ -293,9 +469,9 @@ private:
     ugv_state_->system_inhibit, // x, int16_t
     ugv_state_->system_reason_not_ready, // y, int16_t
     ugv_state_->system_ready, // z, int16_t
-    ugv_state_->gps_altitude, // r, int16_t
-    ugv_state_->gps_latitude, // buttons, uint16_t
-    ugv_state_->gps_longitude, // buttons2, uint16_t
+    0, // r, int16_t
+    0, // buttons, uint16_t
+    0, // buttons2, uint16_t
     ugv_state_->brake_enabled, // enabled_extensions, uint8_t
     ugv_state_->brake_torque_pedal, // s, int16_t
     ugv_state_->brake_fault, // t, int16_t
@@ -362,6 +538,35 @@ private:
     } else {
 
     }
+
+    /* send_global_position_int_msg */
+    uint8_t buffer4[360];
+    mavlink_message_t mav_msg4;
+
+    mavlink_msg_global_position_int_pack(
+    1,     // system ID
+    1,   // component ID
+    &mav_msg4,
+    123456,        // time_boot_ms
+    static_cast<int32_t>(ugv_state_->gps_latitude * 1.0e7),     // int32_t, lat (56.952117°) 56.952135, 24.078829
+    static_cast<int32_t>(ugv_state_->gps_longitude * 1.0e7),     // int32_t, lon (24.079051°)
+    static_cast<int32_t>(ugv_state_->gps_altitude),         // int32_t, alt (12.0 m AMSL)
+    static_cast<int32_t>(ugv_state_->gps_altitude),           // relative_alt (0.5 m above ground)
+    0,           // vx (1.0 m/s North)
+    0,             // vy (0 m/s East)
+    0,           // vz (-0.5 m/s Down)
+    static_cast<uint16_t>(ugv_state_->gps_head * 100.0)           // uint16_t, hdg (90.00° East)
+    );
+
+    int len4 = mavlink_msg_to_send_buffer(buffer4, &mav_msg4);
+
+    int bytes_sent4 = sendto(sock_, buffer4, len4, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
+    if (bytes_sent4 < 0) {
+        RCLCPP_INFO(this->get_logger(), "GLOBAL_POSITION_INT UDP send failed");
+    } else {
+
+    }
+
     data_mutex_.unlock();
 
   }
@@ -398,7 +603,7 @@ private:
     }
 
     if (gps_sub_->get_publisher_count() == 0) {
-      RCLCPP_INFO(this->get_logger(), "Are '/vehicle/gps/fix' msgs published ('%s')?", this->get_name());
+      RCLCPP_INFO(this->get_logger(), "Are '/ugv/gps/fix' msgs published ('%s')?", this->get_name());
     }
 
     if (thottle_sub_->get_publisher_count() == 0) {
@@ -497,18 +702,22 @@ private:
     gps_hz_->Tick(this->shared_from_this());
     ugv_telemetry_freq_->gps = static_cast<uint16_t>(gps_hz_->GetFreq(this->shared_from_this()) * 10.0);
 
-    ugv_state_->gps_latitude = static_cast<uint16_t>(msg->latitude);
-    ugv_state_->gps_longitude = static_cast<uint16_t>(msg->longitude);
+    ugv_state_->gps_latitude = static_cast<double>(msg->latitude);
+    ugv_state_->gps_longitude = static_cast<double>(msg->longitude);
     ugv_state_->gps_altitude = static_cast<int16_t>(msg->altitude);
   }
 
+
   int sock_;
+  int tak_sock_;
   struct sockaddr_in remote_addr_{};
+  struct sockaddr_in tak_remote_addr_{};
   std::mutex data_mutex_;
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::TimerBase::SharedPtr timer2_;
   rclcpp::TimerBase::SharedPtr timer3_;
+  rclcpp::TimerBase::SharedPtr timer4_;
   std::shared_ptr<UVG_telemetry_struct> ugv_state_;
   std::shared_ptr<MessagesFrequency_struct> ugv_telemetry_freq_;
 
@@ -537,7 +746,12 @@ private:
   
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<UGVTelemetry>());
+
+  rclcpp::executors::MultiThreadedExecutor executor;
+  auto ugv_telemetry_node = std::make_shared<UGVTelemetry>();
+
+  executor.add_node(ugv_telemetry_node);
+  executor.spin();
   rclcpp::shutdown();
   return 0;
 }

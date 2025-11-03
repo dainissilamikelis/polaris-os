@@ -23,7 +23,11 @@ include_directories(
 add_executable(mavros_commutator src/commutator.cpp)
 ament_target_dependencies(mavros_commutator rclcpp sensor_msgs ds_dbw_msgs)
 
+target_link_libraries(mavros_commutator
+  gps
+)
 target_compile_definitions(mavros_commutator PRIVATE MAVLINK_SIGNING)
+
 
 
 install(TARGETS

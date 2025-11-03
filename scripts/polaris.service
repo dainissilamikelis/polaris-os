@@ -1,0 +1,14 @@
+[Unit]
+Description=Polaris UGV service
+After=network.target
+
+[Service]
+ExecStart=/home/user/pol_ws/src/polaris-os/scripts/run.sh
+Restart=on-failure
+User=user
+WorkingDirectory=/home/user/pol_ws/src/polaris-os/scripts
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

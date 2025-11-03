@@ -16,6 +16,8 @@
 #include <bitset>
 #include <map>
 #include <fcntl.h>
+#include <libgpsmm.h>
+#include <iostream>
 
 struct GearState {
     uint8_t gear_current;
@@ -286,238 +288,7 @@ class ButtonPressed : public rclcpp::Node {
         }
 };
 
-class TAK_telemetry : public rclcpp::Node {
-// The class communicates mavlink messages to the TAK
-    public:
-        TAK_telemetry() : rclcpp::Node("tak_telemetry_node") {
-            RCLCPP_INFO(this->get_logger(), "TAKTelemetryNode '%s' node started.", this->get_name());
 
-            sock_ = socket(AF_INET, SOCK_DGRAM, 0);
-            if (sock_ < 0) {
-                RCLCPP_INFO(this->get_logger(), "Socket creation failed.");
-            }
-
-            remote_addr_.sin_family = AF_INET;
-            remote_addr_.sin_port = htons(14552);  // Target port (e.g. QGroundControl or autopilot)
-            remote_addr_.sin_addr.s_addr = inet_addr("172.25.116.22");  // Target IP
-            
-
-            // if (bind(sock_, (const struct sockaddr*)&remote_addr_, sizeof(remote_addr_)) < 0) {
-            //     RCLCPP_INFO(this->get_logger(), "Socket bind failed.");
-            //     close(sock_);
-            // }
-
-            timer_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&TAK_telemetry::send_heartbit_msg, this));
-
-            timer2_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&TAK_telemetry::send_statustext_msg, this));
-
-            timer3_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&TAK_telemetry::send_sys_status_msg, this));
-
-            timer4_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&TAK_telemetry::send_global_position_int_msg, this));
-
-            timer5_ = this->create_wall_timer(std::chrono::milliseconds(1000), std::bind(&TAK_telemetry::send_vfr_hud_msg, this));
-        }
-
-        ~TAK_telemetry() {
-            close(sock_);
-        }
-    
-    private:
-        int sock_;
-        rclcpp::TimerBase::SharedPtr timer_;
-        rclcpp::TimerBase::SharedPtr timer2_;
-        rclcpp::TimerBase::SharedPtr timer3_;
-        rclcpp::TimerBase::SharedPtr timer4_;
-        rclcpp::TimerBase::SharedPtr timer5_;
-
-        uint16_t prev_value_;
-        rclcpp::Time prev_time_ = this->now();
-        double hold_time_ = 2.0; // secs
-        struct 
-            sockaddr_in remote_addr_{};
-
-        void send_heartbit_msg() {
-            // create and send HEARTBIT message to the TAK
-
-            mavlink_message_t msg;
-            uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-            mavlink_msg_heartbeat_pack(
-            1,     // system ID
-            1,   // component ID
-            &msg,
-            MAV_TYPE_GROUND_ROVER,
-            MAV_AUTOPILOT_GENERIC,
-            MAV_MODE_MANUAL_DISARMED,
-            0,     // custom mode
-            MAV_STATE_ACTIVE
-            );
-
-            int len = mavlink_msg_to_send_buffer(buf, &msg);
-            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
-
-            int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
-            if (bytes_sent < 0) {
-                RCLCPP_INFO(this->get_logger(), "heartbit UDP send failed");
-            } else {
-                //RCLCPP_INFO(this->get_logger(), "heartbit UDP send OK");
-            }
-        }
-
-        void send_statustext_msg() {
-            // create and send STATUSTEXT message to the TAK
-
-            mavlink_message_t msg;
-            uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-
-            const char* status = "UGV is ready";
-
-            mavlink_msg_statustext_pack(
-            1,     // system ID
-            1,   // component ID
-            &msg,
-            MAV_SEVERITY_INFO,
-            status,
-            0, // Unique ID for message grouping (extension)
-            0 // Sequence number for chunked messages (extension)
-            );
-
-            int len = mavlink_msg_to_send_buffer(buf, &msg);
-            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
-
-            int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
-            if (bytes_sent < 0) {
-                RCLCPP_INFO(this->get_logger(), "statustext UDP send failed");
-            } else {
-                //RCLCPP_INFO(this->get_logger(), "statustext UDP send OK");
-            }
-
-        }
-
-        void send_sys_status_msg() {
-            // create and send SYS_STATUS message to the TAK
-
-            mavlink_message_t msg;
-            uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-
-            uint32_t sensors_present = MAV_SYS_STATUS_SENSOR_3D_GYRO |
-                               MAV_SYS_STATUS_SENSOR_3D_ACCEL |
-                               MAV_SYS_STATUS_SENSOR_GPS;
-            
-            uint32_t sensors_enabled = sensors_present;
-            uint32_t sensors_health  = sensors_present;
-            uint16_t load = 0;               // 0% CPU load
-            uint16_t voltage_battery = 0;  // 0.0 V, used as FUEL
-            int16_t current_battery = 0;     // 0.0 A, used as FUEL
-            int8_t battery_remaining = 77;     // 100% FUEL level of the UGV
-            uint16_t drop_rate_comm = 0;      // 0% drop rate
-            uint16_t errors_comm = 0;
-            uint16_t errors_count1 = 0;
-            uint16_t errors_count2 = 0;
-            uint16_t errors_count3 = 0;
-            uint16_t errors_count4 = 0;
-            uint32_t battery_current_consumed = 0;  // NEW
-            uint32_t battery_energy_consumed = 0;   // NEW
-            uint32_t communication_errors = 0;       // NEW
-
-            mavlink_msg_sys_status_pack(
-                1,  // system ID
-                1,  // component ID
-                &msg,
-                sensors_present,
-                sensors_enabled,
-                sensors_health,
-                load,
-                voltage_battery,
-                current_battery,
-                battery_remaining,
-                drop_rate_comm,
-                errors_comm,
-                errors_count1,
-                errors_count2,
-                errors_count3,
-                errors_count4,
-                battery_current_consumed,
-                battery_energy_consumed,
-                communication_errors
-            );
-
-            int len = mavlink_msg_to_send_buffer(buf, &msg);
-            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
-
-            int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
-            if (bytes_sent < 0) {
-                RCLCPP_INFO(this->get_logger(), "sys_status UDP send failed");
-            } else {
-                //RCLCPP_INFO(this->get_logger(), "sys_status UDP send OK");
-            }
-
-        }
-        
-        void send_global_position_int_msg() {
-            // create and send GLOBAL_POSITION_INT message to the TAK
-
-            mavlink_message_t msg;
-            uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-
-            mavlink_msg_global_position_int_pack(
-            1,     // system ID
-            1,   // component ID
-            &msg,
-            123456,        // time_boot_ms
-            569521350,     // lat (56.952117°) 56.952135, 24.078829
-            240788290,     // lon (24.079051°)
-            12000,         // alt (12.0 m AMSL)
-            500,           // relative_alt (0.5 m above ground)
-            100,           // vx (1.0 m/s North)
-            0,             // vy (0 m/s East)
-            -50,           // vz (-0.5 m/s Down)
-            9000           // hdg (90.00° East)
-            );
-
-            int len = mavlink_msg_to_send_buffer(buf, &msg);
-            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
-
-            int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
-            if (bytes_sent < 0) {
-                RCLCPP_INFO(this->get_logger(), "GLOBAL_POSITION_INT UDP send failed");
-            } else {
-                //RCLCPP_INFO(this->get_logger(), "GLOBAL_POSITION_INT UDP send OK");
-            }
-
-        }
-
-        void send_vfr_hud_msg() {
-            // create and send VFR_HUD message to the TAK
-
-            mavlink_message_t msg;
-            uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-
-            mavlink_msg_vfr_hud_pack(
-                1,    // system ID
-                1,  // component ID
-                &msg,
-                12.5,     // airspeed (m/s)
-                13.0,     // groundspeed (m/s)
-                90,       // heading (degrees)
-                75,       // throttle (%)
-                120.0,    // altitude (meters)
-                1.5       // climb rate (m/s)
-            );
-
-            int len = mavlink_msg_to_send_buffer(buf, &msg);
-            //RCLCPP_INFO(this->get_logger(), "The LEN is: %d", len);
-
-            int bytes_sent = sendto(sock_, buf, len, 0, (struct sockaddr*)&remote_addr_, sizeof(remote_addr_));
-            if (bytes_sent < 0) {
-                RCLCPP_INFO(this->get_logger(), "VFR_HUD UDP send failed");
-            } else {
-                //RCLCPP_INFO(this->get_logger(), "VFR_HUD UDP send OK");
-            }
-
-        }
-
-
-};
 
 class JoyReader : public rclcpp::Node {
     public:
@@ -786,6 +557,9 @@ class JoyReader : public rclcpp::Node {
     rclcpp::Subscription<ds_dbw_msgs::msg::SystemReport>::SharedPtr system_report_sub_; 
 
 };
+
+
+
   
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
@@ -813,7 +587,8 @@ int main(int argc, char **argv) {
   auto reverseGearWatch_node = std::make_shared<ButtonPressed>("ReverseGearWatch", reverseGear);
   auto wdModeWatch_node = std::make_shared<ButtonPressed>("WDModeWatch", wdMode);
   auto enableJoy_node = std::make_shared<ButtonPressed>("EnableJoyWatch", enable_joy);
-  auto takTelemetry_node = std::make_shared<TAK_telemetry>();
+
+  
 
   std::shared_ptr<GearState> gear_state = std::make_shared<GearState>();
   auto gearMonitor_node = std::make_shared<UvgGearMonitor>(oncePress_button_map, gear_state);
@@ -827,7 +602,6 @@ int main(int argc, char **argv) {
   executor.add_node(reverseGearWatch_node);
   executor.add_node(wdModeWatch_node);
   executor.add_node(enableJoy_node);
-  executor.add_node(takTelemetry_node);
   executor.add_node(gearMonitor_node);
 
   executor.add_node(joyReader_node);

@@ -42,10 +42,11 @@ int main(int argc, char **argv) {
 
     // Set configuration parameters for the ZED
     InitParameters init_parameters;
-    init_parameters.camera_resolution = sl::RESOLUTION::HD1080;
+    init_parameters.camera_resolution = sl::RESOLUTION::SVGA;
+    //init_parameters.camera_resolution = sl::RESOLUTION::HD1080;
     init_parameters.depth_mode = DEPTH_MODE::NONE;
     init_parameters.sdk_verbose = 1;
-    init_parameters.camera_fps = 60;
+    //init_parameters.camera_fps = 15;
 
     int res_arg = parseArgs(argc, argv, init_parameters);
 
@@ -61,7 +62,7 @@ int main(int argc, char **argv) {
     if (argc > 2) stream_params.port = atoi(argv[2]);
     stream_params.adaptative_bitrate = true;
     stream_params.codec = sl::STREAMING_CODEC::H264;
-    stream_params.chunk_size = 1390;
+    stream_params.chunk_size = 800;
 
 
     returned_state = zed.enableStreaming(stream_params);
